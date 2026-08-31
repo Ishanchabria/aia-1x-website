@@ -248,6 +248,137 @@ p {
   color: var(--accent);
 }
 
+/* Concept photo */
+.concept-layout {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 3rem;
+  align-items: center;
+  max-width: none;
+}
+
+.concept-photo {
+  margin: 0;
+}
+
+.concept-photo img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  background: #f2ebe0;
+  border-radius: 6px;
+  padding: 1.5rem;
+}
+
+.concept-photo figcaption {
+  margin-top: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--body);
+}
+
+@media (max-width: 800px) {
+  .concept-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Parts grid (spec sheet) */
+.parts-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+  margin: 2rem 0 2.5rem;
+}
+
+.part-card {
+  margin: 0;
+  background: var(--bg);
+  border: 1px solid rgba(132, 120, 105, 0.25);
+  border-radius: 6px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.part-card:hover {
+  border-color: var(--accent);
+}
+
+.part-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  background: #f2ebe0;
+  padding: 1.1rem;
+}
+
+.part-card figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.9rem 1rem 1.1rem;
+}
+
+.part-name {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: var(--body);
+  text-transform: uppercase;
+}
+
+.part-value {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: var(--headline);
+}
+
+.materials-eyebrow {
+  display: block;
+  margin-top: 0.5rem;
+}
+
+.materials-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.material-card {
+  margin: 0;
+  background: var(--bg);
+  border: 1px solid rgba(132, 120, 105, 0.2);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.material-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  background: #f2ebe0;
+  padding: 0.9rem;
+}
+
+.material-card figcaption {
+  padding: 0.6rem 0.75rem 0.8rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--body);
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .parts-grid,
+  .materials-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 /* Spec table */
 .spec-table {
   width: 100%;

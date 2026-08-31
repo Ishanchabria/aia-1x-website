@@ -99,18 +99,24 @@
 
     <!-- Concept -->
     <section class="section" id="concept">
-      <div class="section-inner">
-        <span class="eyebrow">CONCEPT</span>
-        <h2>Why hand-built, not kit-assembled.</h2>
-        <p class="body-text">
-          AIA-1X isn't a kit build. Every part was sourced individually and
-          every line of flight-control firmware is written from scratch,
-          stage by stage. The goal isn't the fastest path to a flying
-          quadcopter — it's understanding the system well enough to debug it
-          blind before ever trusting it to lift off. This is phase one of a
-          longer roadmap toward an autonomous delivery drone, and the
-          discipline built here carries forward into every phase after it.
-        </p>
+      <div class="section-inner concept-layout">
+        <div>
+          <span class="eyebrow">CONCEPT</span>
+          <h2>Why hand-built, not kit-assembled.</h2>
+          <p class="body-text">
+            AIA-1X isn't a kit build. Every part was sourced individually and
+            every line of flight-control firmware is written from scratch,
+            stage by stage. The goal isn't the fastest path to a flying
+            quadcopter — it's understanding the system well enough to debug
+            it blind before ever trusting it to lift off. This is phase one
+            of a longer roadmap toward an autonomous delivery drone, and the
+            discipline built here carries forward into every phase after it.
+          </p>
+        </div>
+        <figure class="concept-photo">
+          <img src="/parts/frame-kit.webp" alt="Q100 carbon fiber frame kit, unassembled — arms, standoffs, grommets, and hardware" />
+          <figcaption>Q100 frame kit, as it arrived — before assembly.</figcaption>
+        </figure>
       </div>
     </section>
 
@@ -185,18 +191,66 @@
       <div class="section-inner">
         <span class="eyebrow">SPEC SHEET</span>
         <h2>Hardware.</h2>
+
+        <div class="parts-grid">
+          <figure class="part-card">
+            <img src="/parts/esp32.webp" alt="ESP32 DevKit V1 development board" />
+            <figcaption>
+              <span class="part-name">Flight controller</span>
+              <span class="part-value">ESP32 DevKit V1</span>
+            </figcaption>
+          </figure>
+          <figure class="part-card">
+            <img src="/parts/mpu6050.webp" alt="MPU6050 GY-521 IMU breakout board" />
+            <figcaption>
+              <span class="part-name">IMU</span>
+              <span class="part-value">MPU6050 (GY-521)</span>
+            </figcaption>
+          </figure>
+          <figure class="part-card">
+            <img src="/parts/motors-props.webp" alt="8520 coreless brushed motors with propellers" />
+            <figcaption>
+              <span class="part-name">Motors</span>
+              <span class="part-value">8520 coreless brushed</span>
+            </figcaption>
+          </figure>
+          <figure class="part-card">
+            <img src="/parts/frame-kit.webp" alt="Q100 carbon fiber quadcopter frame kit" />
+            <figcaption>
+              <span class="part-name">Frame</span>
+              <span class="part-value">Q100, 100mm, ~12g</span>
+            </figcaption>
+          </figure>
+        </div>
+
         <table class="spec-table">
           <tbody>
-            <tr><td>Flight controller</td><td>ESP32 DevKit V1</td></tr>
-            <tr><td>IMU</td><td>MPU6050 (GY-521 breakout)</td></tr>
             <tr><td>IMU wiring</td><td>VCC→3.3V, GND→GND, SCL→GPIO22, SDA→GPIO21</td></tr>
-            <tr><td>Motors</td><td>8520 coreless brushed motors</td></tr>
             <tr><td>MOSFETs</td><td>IRLZ44N</td></tr>
-            <tr><td>Frame</td><td>Q100 Brushed Quadcopter Frame, 100mm wheelbase, ~12g</td></tr>
             <tr><td>Battery</td><td>1S LiPo, 350–450mAh (Witty Fox)</td></tr>
             <tr><td>Control link</td><td>WiFi, phone-based</td></tr>
           </tbody>
         </table>
+
+        <span class="eyebrow materials-eyebrow">BUILD MATERIALS</span>
+        <div class="materials-grid">
+          <figure class="material-card">
+            <img src="/parts/perfboard.jpg" alt="5x7cm prototype perfboard, pack of five" />
+            <figcaption>Perfboard, 5×7cm ×5</figcaption>
+          </figure>
+          <figure class="material-card">
+            <img src="/parts/jumper-wires.webp" alt="Female-to-female jumper wires, 20cm, pack of 20" />
+            <figcaption>F–F jumper wires, 20cm</figcaption>
+          </figure>
+          <figure class="material-card">
+            <img src="/parts/resistors.webp" alt="10kΩ resistors" />
+            <figcaption>10kΩ resistors</figcaption>
+          </figure>
+          <figure class="material-card">
+            <img src="/parts/diodes.webp" alt="Signal diodes" />
+            <figcaption>Diodes</figcaption>
+          </figure>
+        </div>
       </div>
     </section>
 
