@@ -6,9 +6,18 @@ const CREAM = 0xfae1c3;
 const TAUPE = 0x847869;
 const DARK = 0x2b2b2b;
 
+const loader = new THREE.TextureLoader();
+function photoTexture(path, { repeat, offset } = {}) {
+  const tex = loader.load(path);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  if (repeat) tex.repeat.set(...repeat);
+  if (offset) tex.offset.set(...offset);
+  return tex;
+}
+
 /**
- * Placeholder primitive-shape drone model.
- * Swap for a Blender-exported .glb once the real model is ready —
+ * Placeholder primitive-shape drone model, textured with photos of the real
+ * parts. Swap for a Blender-exported .glb once the real model is ready —
  * keep the same part names/stage numbers so the explode logic still lines up.
  */
 export function createDrone() {
@@ -16,9 +25,20 @@ export function createDrone() {
   const parts = [];
 
   const bodyMat = new THREE.MeshStandardMaterial({ color: DARK, roughness: 0.5, metalness: 0.3 });
-  const armMat = new THREE.MeshStandardMaterial({ color: DEEP_RED, roughness: 0.6, metalness: 0.2 });
+  const armSideMat = new THREE.MeshStandardMaterial({ color: DEEP_RED, roughness: 0.6, metalness: 0.2 });
+  const armPhotoMat = new THREE.MeshStandardMaterial({
+    map: photoTexture("/parts/frame-kit.webp"),
+    roughness: 0.6,
+  });
   const motorMat = new THREE.MeshStandardMaterial({ color: ACCENT, roughness: 0.4, metalness: 0.5 });
+  const motorCapMat = new THREE.MeshStandardMaterial({
+    map: photoTexture("/parts/motors-props.webp", { repeat: [0.45, 1], offset: [0.02, 0] }),
+    roughness: 0.4,
+    metalness: 0.3,
+  });
   const boardMat = new THREE.MeshStandardMaterial({ color: CREAM, roughness: 0.5, metalness: 0.1 });
+  const imuTopMat = new THREE.MeshStandardMaterial({ map: photoTexture("/parts/mpu6050.webp"), roughness: 0.5 });
+  const esp32TopMat = new THREE.MeshStandardMaterial({ map: photoTexture("/parts/esp32.webp"), roughness: 0.5 });
   const batteryMat = new THREE.MeshStandardMaterial({ color: TAUPE, roughness: 0.6, metalness: 0.1 });
 
   // Center plate (frame core) — stays put, stage 0
@@ -33,7 +53,15 @@ export function createDrone() {
   const arms = [];
   armAngles.forEach((deg) => {
     const rad = THREE.MathUtils.degToRad(deg);
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(armLength, 0.08, 0.14), armMat);
+    // BoxGeometry material order: [+x, -x, +y (top), -y (bottom), +z, -z]
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(armLength, 0.08, 0.14), [
+      armSideMat,
+      armSideMat,
+      armPhotoMat,
+      armSideMat,
+      armSideMat,
+      armSideMat,
+    ]);
     const dir = new THREE.Vector3(Math.cos(rad), 0, Math.sin(rad));
     const origin = dir.clone().multiplyScalar(armLength / 2);
     arm.position.copy(origin);
@@ -46,7 +74,8 @@ export function createDrone() {
 
   // Four motors — stage 2, sit at arm tips
   arms.forEach(({ dir, origin }) => {
-    const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.32, 16), motorMat);
+    // CylinderGeometry material order: [side, top, bottom]
+    const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.32, 16), [motorMat, motorCapMat, motorMat]);
     const tip = dir.clone().multiplyScalar(armLength);
     motor.position.copy(tip).add(new THREE.Vector3(0, 0.15, 0));
     group.add(motor);
@@ -60,13 +89,27 @@ export function createDrone() {
   });
 
   // IMU (MPU6050) — stage 3, small chip near core
-  const imu = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.05, 0.22), boardMat);
+  const imu = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.05, 0.22), [
+    boardMat,
+    boardMat,
+    imuTopMat,
+    boardMat,
+    boardMat,
+    boardMat,
+  ]);
   imu.position.set(0.15, 0.12, -0.15);
   group.add(imu);
   parts.push({ mesh: imu, origin: imu.position.clone(), explode: new THREE.Vector3(0.4, 1.3, -0.4), stage: 3 });
 
   // ESP32 flight controller board — stage 4
-  const esp32 = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.06, 0.35), boardMat);
+  const esp32 = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.06, 0.35), [
+    boardMat,
+    boardMat,
+    esp32TopMat,
+    boardMat,
+    boardMat,
+    boardMat,
+  ]);
   esp32.position.set(-0.05, 0.1, 0.05);
   group.add(esp32);
   parts.push({ mesh: esp32, origin: esp32.position.clone(), explode: new THREE.Vector3(-0.9, 1.8, 0.6), stage: 4 });
