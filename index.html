@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AIA-1X — Hand-Built Micro-Quadcopter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <!-- Telemetry HUD -->
+    <aside id="hud" class="hud">
+      <div class="hud-row">
+        <span class="hud-label">BUILD</span>
+        <span class="hud-value" id="hud-build">00%</span>
+      </div>
+      <div class="hud-row">
+        <span class="hud-label">ALT</span>
+        <span class="hud-value" id="hud-alt">0.0 m</span>
+      </div>
+      <div class="hud-row">
+        <span class="hud-label">PITCH</span>
+        <span class="hud-value" id="hud-pitch">0.0°</span>
+      </div>
+      <div class="hud-row">
+        <span class="hud-label">VBAT</span>
+        <span class="hud-value" id="hud-vbat">3.70 V</span>
+      </div>
+      <div class="hud-row">
+        <span class="hud-label">STAGE</span>
+        <span class="hud-value" id="hud-stage">01</span>
+      </div>
+    </aside>
+
+    <nav class="topnav">
+      <span class="topnav-brand">AIA-1X</span>
+      <span class="topnav-sub">micro-quadcopter // build log</span>
+    </nav>
+
+    <!-- Pinned 3D scroll-explode experience -->
+    <section id="scroll-scene" class="scroll-scene">
+      <div class="scene-pin">
+        <canvas id="drone-canvas"></canvas>
+        <div class="scene-captions">
+          <div class="caption" data-stage="0">
+            <span class="eyebrow">AIA-1X</span>
+            <h1>Built by hand. Coded from scratch.</h1>
+            <p>
+              A self-programmed ESP32 micro-quadcopter — every wire and every
+              line of flight-control code done deliberately, one stage at a
+              time.
+            </p>
+          </div>
+          <div class="caption" data-stage="1">
+            <span class="eyebrow">FRAME</span>
+            <h2>Q100 brushed frame</h2>
+            <p>
+              100mm wheelbase, ~12g, built for 8520 coreless motors. Carries
+              an FPV mount reserved for AIA-2.
+            </p>
+          </div>
+          <div class="caption" data-stage="2">
+            <span class="eyebrow">MOTORS</span>
+            <h2>8520 coreless motors</h2>
+            <p>
+              Driven through IRLZ44N MOSFETs, switched directly from the
+              ESP32's PWM outputs.
+            </p>
+          </div>
+          <div class="caption" data-stage="3">
+            <span class="eyebrow">IMU</span>
+            <h2>MPU6050 (GY-521)</h2>
+            <p>
+              VCC → 3.3V, GND → GND, SCL → GPIO22, SDA → GPIO21. Raw
+              accelerometer and gyro data read over I2C.
+            </p>
+          </div>
+          <div class="caption" data-stage="4">
+            <span class="eyebrow">FLIGHT CONTROLLER</span>
+            <h2>ESP32 DevKit V1</h2>
+            <p>
+              Runs the complementary filter, PID loop, motor mixing, and the
+              WiFi control link — all hand-written.
+            </p>
+          </div>
+          <div class="caption" data-stage="5">
+            <span class="eyebrow">POWER</span>
+            <h2>1S LiPo, 350–450mAh</h2>
+            <p>Witty Fox pack. Exact capacity still being finalized on stock availability.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Concept -->
+    <section class="section" id="concept">
+      <div class="section-inner">
+        <span class="eyebrow">CONCEPT</span>
+        <h2>Why hand-built, not kit-assembled.</h2>
+        <p class="body-text">
+          AIA-1X isn't a kit build. Every part was sourced individually and
+          every line of flight-control firmware is written from scratch,
+          stage by stage. The goal isn't the fastest path to a flying
+          quadcopter — it's understanding the system well enough to debug it
+          blind before ever trusting it to lift off. This is phase one of a
+          longer roadmap toward an autonomous delivery drone, and the
+          discipline built here carries forward into every phase after it.
+        </p>
+      </div>
+    </section>
+
+    <!-- Build log -->
+    <section class="section" id="build-log">
+      <div class="section-inner">
+        <span class="eyebrow">BUILD LOG</span>
+        <h2>Seven coding stages.</h2>
+        <ol class="stage-list">
+          <li class="stage-item" data-status="done">
+            <span class="stage-num">01</span>
+            <div>
+              <h3>Raw IMU reading</h3>
+              <p>Arduino sketch reading raw accelerometer/gyro data over I2C.</p>
+            </div>
+            <span class="stage-status">complete</span>
+          </li>
+          <li class="stage-item" data-status="progress">
+            <span class="stage-num">02</span>
+            <div>
+              <h3>Complementary filter</h3>
+              <p>Fusing accelerometer + gyro data into a stable, drift-corrected pitch/roll estimate.</p>
+            </div>
+            <span class="stage-status">in progress</span>
+          </li>
+          <li class="stage-item" data-status="queued">
+            <span class="stage-num">03</span>
+            <div>
+              <h3>PID loop</h3>
+              <p>Closed-loop stabilization, converting attitude error into correction output.</p>
+            </div>
+            <span class="stage-status">queued</span>
+          </li>
+          <li class="stage-item" data-status="queued">
+            <span class="stage-num">04</span>
+            <div>
+              <h3>Motor mixing / PWM</h3>
+              <p>Translating PID output into individual motor throttle signals.</p>
+            </div>
+            <span class="stage-status">queued</span>
+          </li>
+          <li class="stage-item" data-status="queued">
+            <span class="stage-num">05</span>
+            <div>
+              <h3>WiFi phone control</h3>
+              <p>Wireless control link from a phone interface to the ESP32.</p>
+            </div>
+            <span class="stage-status">queued</span>
+          </li>
+          <li class="stage-item" data-status="queued">
+            <span class="stage-num">06</span>
+            <div>
+              <h3>Bench testing, props off</h3>
+              <p>Full-system dry run confirming motor response and control logic before any lift.</p>
+            </div>
+            <span class="stage-status">queued</span>
+          </li>
+          <li class="stage-item" data-status="queued">
+            <span class="stage-num">07</span>
+            <div>
+              <h3>PID tuning</h3>
+              <p>Live tuning pass once airborne. Backflip capability is deferred to AIA-2.</p>
+            </div>
+            <span class="stage-status">queued</span>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- Spec sheet -->
+    <section class="section" id="specs">
+      <div class="section-inner">
+        <span class="eyebrow">SPEC SHEET</span>
+        <h2>Hardware.</h2>
+        <table class="spec-table">
+          <tbody>
+            <tr><td>Flight controller</td><td>ESP32 DevKit V1</td></tr>
+            <tr><td>IMU</td><td>MPU6050 (GY-521 breakout)</td></tr>
+            <tr><td>IMU wiring</td><td>VCC→3.3V, GND→GND, SCL→GPIO22, SDA→GPIO21</td></tr>
+            <tr><td>Motors</td><td>8520 coreless brushed motors</td></tr>
+            <tr><td>MOSFETs</td><td>IRLZ44N</td></tr>
+            <tr><td>Frame</td><td>Q100 Brushed Quadcopter Frame, 100mm wheelbase, ~12g</td></tr>
+            <tr><td>Battery</td><td>1S LiPo, 350–450mAh (Witty Fox)</td></tr>
+            <tr><td>Control link</td><td>WiFi, phone-based</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Roadmap -->
+    <section class="section" id="roadmap">
+      <div class="section-inner">
+        <span class="eyebrow">ROADMAP</span>
+        <h2>AIA-1X → AIA-X</h2>
+        <div class="roadmap-grid">
+          <div class="roadmap-item active">
+            <h3>AIA-1X</h3>
+            <p>Core flight-control loop, hand-built and hand-tuned.</p>
+          </div>
+          <div class="roadmap-item">
+            <h3>AIA-2</h3>
+            <p>Aerobatic maneuvers, including the deferred backflip.</p>
+          </div>
+          <div class="roadmap-item">
+            <h3>AIA-3</h3>
+            <p>Navigation and autonomous waypoint flight.</p>
+          </div>
+          <div class="roadmap-item">
+            <h3>AIA-X</h3>
+            <p>Full autonomous delivery drone.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <p>AIA-1X — designed, wired, and coded by hand.</p>
+    </footer>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
