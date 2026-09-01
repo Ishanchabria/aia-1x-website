@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { createDrone } from "./drone.js";
+import { createDrone, updateDynamicWires } from "./drone.js";
 import "./style.css";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -9,23 +9,61 @@ gsap.registerPlugin(ScrollTrigger);
 const canvas = document.getElementById("drone-canvas");
 const scene = new THREE.Scene();
 
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, 1.6, 4.2);
-camera.lookAt(0, 0, 0);
+// Scene is modeled in true mm — drone reads ~100mm across, so the camera
+// and lights sit tens/hundreds of units out rather than the 1-4 unit range
+// a toy scene would use.
+const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 3000);
+camera.position.set(0, 55, 260);
+camera.lookAt(0, 25, 0);
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-scene.add(new THREE.AmbientLight(0xfae1c3, 0.5));
-const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
-keyLight.position.set(3, 4, 2);
+// --- three-point lighting ---
+scene.add(new THREE.AmbientLight(0xfff4e8, 0.35));
+
+const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
+keyLight.position.set(150, 220, 120);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(1024, 1024);
+keyLight.shadow.camera.left = -180;
+keyLight.shadow.camera.right = 180;
+keyLight.shadow.camera.top = 180;
+keyLight.shadow.camera.bottom = -180;
+keyLight.shadow.camera.near = 1;
+keyLight.shadow.camera.far = 800;
+keyLight.shadow.bias = -0.001;
 scene.add(keyLight);
-const rimLight = new THREE.DirectionalLight(0xc25640, 0.6);
-rimLight.position.set(-3, 1, -2);
+
+const fillLight = new THREE.DirectionalLight(0xdfe6ea, 0.45);
+fillLight.position.set(-180, 90, -80);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight(0xc9d6e0, 0.9);
+rimLight.position.set(-60, 150, -220);
 scene.add(rimLight);
 
-const { group: drone, parts, stageCount } = createDrone();
+// soft neutral ground to catch contact shadows — sits outside the
+// rotating drone group so it always stays level
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(700, 700),
+  new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.45, metalness: 0.05 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -46;
+ground.receiveShadow = true;
+scene.add(ground);
+
+const { group: drone, parts, dynamicWires, stageCount } = createDrone();
+drone.traverse((obj) => {
+  if (obj.isMesh) {
+    obj.castShadow = true;
+    obj.receiveShadow = true;
+  }
+});
 scene.add(drone);
 
 function resize() {
@@ -37,7 +75,16 @@ function resize() {
 }
 window.addEventListener("resize", resize);
 
+// Props spin continuously, but only once they've separated from the motors —
+// `spinT` is set by updateScene to how far along that part's explosion is.
+const spinners = parts.filter((p) => p.spin);
+const clock = new THREE.Clock();
+
 function render() {
+  const dt = clock.getDelta();
+  spinners.forEach((p) => {
+    if (p.spinT) p.mesh.rotation.y += p.spin * p.spinT * dt;
+  });
   renderer.render(scene, camera);
   requestAnimationFrame(render);
 }
@@ -59,22 +106,25 @@ function stageWindow(stage) {
 }
 
 function updateScene(progress) {
-  // Explode each part based on which stage "owns" it
-  parts.forEach(({ mesh, origin, explode, stage }) => {
+  parts.forEach((part) => {
+    const { mesh, origin, explode, stage } = part;
     const { start } = stageWindow(stage);
     const localT = THREE.MathUtils.clamp((progress - start) / (1 - start), 0, 1);
     const eased = gsap.parseEase("power2.out")(localT);
     mesh.position.lerpVectors(origin, origin.clone().add(explode), eased);
+    part.spinT = eased;
   });
 
-  drone.rotation.y = progress * Math.PI * 1.3;
+  updateDynamicWires(dynamicWires);
+
+  drone.rotation.y = progress * Math.PI * 1.1;
 
   const camAngle = progress * Math.PI * 0.7;
-  const radius = 4.2 + progress * 2.4;
+  const radius = 260 + progress * 220;
   camera.position.x = Math.sin(camAngle) * radius;
   camera.position.z = Math.cos(camAngle) * radius;
-  camera.position.y = 1.6 + progress * 1.8;
-  camera.lookAt(0, 0.2, 0);
+  camera.position.y = 55 + progress * 140;
+  camera.lookAt(0, 25 + progress * 15, 0);
 
   // Captions: fade in/out within each stage window
   captions.forEach((el) => {

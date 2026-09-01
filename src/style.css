@@ -120,7 +120,7 @@ p {
 /* Scroll-driven 3D scene */
 .scroll-scene {
   position: relative;
-  height: 600vh;
+  height: 700vh;
 }
 
 .scene-pin {

@@ -1,234 +1,605 @@
 import * as THREE from "three";
 
-const ACCENT = 0xc25640;
-const DEEP_RED = 0x91170c;
-const CREAM = 0xfae1c3;
-const TAUPE = 0x847869;
-const CARBON = 0x1c1c1c;
-const CARBON_LIGHT = 0x2b2b2b;
-const PCB_BLACK = 0x141414;
-const PCB_BLUE = 0x1a3a6b;
-const SILVER = 0xcfd3d6;
-const GOLD = 0xb08d3e;
-const CHIP_BLACK = 0x0c0c0c;
-const RUBBER_RED = 0xb23a2a;
-const RUBBER_BLACK = 0x1a1a1a;
+// ---------------------------------------------------------------------------
+// Units: 1 Three.js unit = 1mm. Drone reads at true ~100mm scale.
+// Frame + motors are the fixed anchor (per spec, they never explode).
+// Everything else is returned in `parts` with an `origin` (resting local
+// position) and an `explode` delta added to it as scroll progress advances.
+// `dynamicWires` are rebuilt every frame in main.js since their endpoints move.
+// ---------------------------------------------------------------------------
 
-// A short row of pin-header pins along local X, centered at the mesh origin.
-function pinHeaderRow(count, spacing, pinMat) {
+const COLOR = {
+  frame: 0xf3efe6,
+  chrome: 0xd7dadc,
+  steel: 0xe7e9eb,
+  propBlack: 0x0d0d0d,
+  pcbBlack: 0x18181a,
+  shield: 0xb9bcbe,
+  usb: 0xc7c9cb,
+  button: 0x1c1c1c,
+  gold: 0xc9a03a,
+  pcbBlue: 0x1b3f9e,
+  chip: 0x0c0c0c,
+  amber: 0xd9832a,
+  perfboard: 0xc9a56a,
+  copper: 0xb5651d,
+  mosfetBody: 0x151515,
+  mosfetTab: 0xc9cdd0,
+  leg: 0xb8b8b8,
+  resistorBody: 0xdccb9e,
+  foil: 0xc9cccf,
+  jst: 0xf0ede6,
+  zipTie: 0x101010,
+  wireRed: 0xcc2b2b,
+  wireBlack: 0x161616,
+  wireYellow: 0xdcb92e,
+  wireBlue: 0x2255aa,
+  wireWhite: 0xe7e2d6,
+};
+
+// ---- small texture helper: draws a top-face detail (silkscreen/label/grid) ----
+function canvasTexture(draw, w = 256, h = 256) {
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  draw(ctx, w, h);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function esp32Texture() {
+  return canvasTexture((ctx, w, h) => {
+    ctx.fillStyle = "#18181a";
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = "rgba(255,255,255,0.55)";
+    ctx.lineWidth = 1;
+    ctx.font = "10px monospace";
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    for (let i = 0; i < 15; i++) {
+      const y = (h / 15) * i + 6;
+      ctx.fillText(String(i), 6, y);
+      ctx.fillText(String(i), w - 16, y);
+    }
+    ctx.font = "bold 20px sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.fillText("ESP32", w / 2 - 34, h - 14);
+  }, 128, 320);
+}
+
+function mpuTexture() {
+  return canvasTexture((ctx, w, h) => {
+    ctx.fillStyle = "#1b3f9e";
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.font = "bold 22px sans-serif";
+    ctx.fillText("GY-521", w * 0.42, h * 0.28);
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = 2;
+    const ax = w * 0.2, ay = h * 0.68;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax + 22, ay);
+    ctx.moveTo(ax + 22, ay);
+    ctx.lineTo(ax + 16, ay - 5);
+    ctx.moveTo(ax + 22, ay);
+    ctx.lineTo(ax + 16, ay + 5);
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax, ay - 22);
+    ctx.lineTo(ax - 5, ay - 16);
+    ctx.moveTo(ax, ay - 22);
+    ctx.lineTo(ax + 5, ay - 16);
+    ctx.stroke();
+  }, 200, 150);
+}
+
+function perfboardTopTexture() {
+  return canvasTexture((ctx, w, h) => {
+    ctx.fillStyle = "#c9a56a";
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = "rgba(60,40,15,0.55)";
+    const step = 12;
+    for (let x = step / 2; x < w; x += step) {
+      for (let y = step / 2; y < h; y += step) {
+        ctx.beginPath();
+        ctx.arc(x, y, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }, 256, 220);
+}
+
+function perfboardBottomTexture() {
+  return canvasTexture((ctx, w, h) => {
+    ctx.fillStyle = "#7a4318";
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = "rgba(200,140,70,0.8)";
+    ctx.lineWidth = 3;
+    for (let y = 8; y < h; y += 14) {
+      ctx.beginPath();
+      ctx.moveTo(4, y + ((y / 14) % 2) * 5);
+      ctx.lineTo(w - 4, y);
+      ctx.stroke();
+    }
+  }, 256, 220);
+}
+
+function batteryLabelTexture() {
+  return canvasTexture((ctx, w, h) => {
+    ctx.fillStyle = "#c9cccf";
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = "#12142a";
+    ctx.fillRect(w * 0.08, h * 0.12, w * 0.84, h * 0.76);
+    ctx.fillStyle = "#e8e2d6";
+    ctx.font = "bold 26px sans-serif";
+    ctx.fillText("1S LiPo", w * 0.18, h * 0.42);
+    ctx.font = "13px monospace";
+    ctx.fillStyle = "rgba(232,226,214,0.8)";
+    ctx.fillText("3.7V  400mAh", w * 0.18, h * 0.62);
+    ctx.strokeStyle = "#c25640";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(w * 0.08, h * 0.12, w * 0.84, h * 0.76);
+  }, 256, 192);
+}
+
+// ---- geometry helpers ----
+function roundedRectShape(w, h, r) {
+  const shape = new THREE.Shape();
+  const x = -w / 2, y = -h / 2;
+  shape.moveTo(x + r, y);
+  shape.lineTo(x + w - r, y);
+  shape.absarc(x + w - r, y + r, r, -Math.PI / 2, 0);
+  shape.lineTo(x + w, y + h - r);
+  shape.absarc(x + w - r, y + h - r, r, 0, Math.PI / 2);
+  shape.lineTo(x + r, y + h);
+  shape.absarc(x + r, y + h - r, r, Math.PI / 2, Math.PI);
+  shape.lineTo(x, y + r);
+  shape.absarc(x + r, y + r, r, Math.PI, 1.5 * Math.PI);
+  return shape;
+}
+
+// Extrudes a rounded rect and orients it so local Y=0..depth is UP —
+// i.e. the mesh's local origin is its resting (bottom) face. Lets every
+// board just be positioned at "the surface it rests on."
+function roundedPlate(w, h, depth, radius, bevel = 0.2) {
+  const shape = roundedRectShape(w, h, radius);
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth,
+    bevelEnabled: true,
+    bevelSize: Math.min(bevel, depth / 3),
+    bevelThickness: Math.min(bevel, depth / 3),
+    bevelSegments: 2,
+    curveSegments: 8,
+  });
+  geo.rotateX(-Math.PI / 2);
+  return geo;
+}
+
+function pinRow(count, spacing, length, mat) {
   const group = new THREE.Group();
-  const geo = new THREE.CylinderGeometry(0.006, 0.006, 0.05, 6);
+  const geo = new THREE.BoxGeometry(0.5, length, 0.5);
   const start = -((count - 1) * spacing) / 2;
   for (let i = 0; i < count; i++) {
-    const pin = new THREE.Mesh(geo, pinMat);
-    pin.position.set(start + i * spacing, 0.025, 0);
+    const pin = new THREE.Mesh(geo, mat);
+    pin.position.set(start + i * spacing, -length / 2, 0);
     group.add(pin);
   }
   return group;
 }
 
-// A curved wire from `from` toward `to`, sagging along the way — for motor leads.
-function wire(from, to, color) {
-  const mid = from.clone().lerp(to, 0.5).add(new THREE.Vector3((Math.random() - 0.5) * 0.15, -0.05, (Math.random() - 0.5) * 0.15));
+function buildTubeGeometry(from, to, radius, sagAmount, sagSeed = 0) {
+  const mid = from.clone().lerp(to, 0.5);
+  mid.y -= sagAmount;
+  mid.x += Math.sin(sagSeed) * sagAmount * 0.3;
+  mid.z += Math.cos(sagSeed) * sagAmount * 0.3;
   const curve = new THREE.CatmullRomCurve3([from, mid, to]);
-  const geo = new THREE.TubeGeometry(curve, 12, 0.006, 5, false);
-  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.7 });
+  return new THREE.TubeGeometry(curve, 16, radius, 6, false);
+}
+
+function wireMesh(from, to, color, radius = 0.5, sag = 3, seed = 0) {
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.65 });
+  const mesh = new THREE.Mesh(buildTubeGeometry(from, to, radius, sag, seed), mat);
+  return mesh;
+}
+
+function makeDynamicWire(color, radius = 0.5, sag = 4) {
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.65 });
+  const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(), new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, -2, 0)]), 16, radius, 6, false);
   return new THREE.Mesh(geo, mat);
 }
 
-/**
- * Procedural drone model shaped to resemble the real sourced parts (ESP32
- * DevKit, MPU6050/GY-521, 8520 motors, Q100 frame) — no photo textures, just
- * geometry built to their real proportions and details. Swap for a real
- * Blender-exported .glb later; keep part names/stage numbers aligned with
- * the explode logic in main.js.
- */
+// ---------------------------------------------------------------------------
 export function createDrone() {
   const group = new THREE.Group();
   const parts = [];
+  const dynamicWires = [];
+  let seed = 0;
 
-  const carbonMat = new THREE.MeshStandardMaterial({ color: CARBON, roughness: 0.35, metalness: 0.1 });
-  const carbonLightMat = new THREE.MeshStandardMaterial({ color: CARBON_LIGHT, roughness: 0.4, metalness: 0.15 });
-  const grommetRedMat = new THREE.MeshStandardMaterial({ color: RUBBER_RED, roughness: 0.8 });
-  const grommetBlackMat = new THREE.MeshStandardMaterial({ color: RUBBER_BLACK, roughness: 0.8 });
-  const screwMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.3, metalness: 0.8 });
+  const mats = {
+    frame: new THREE.MeshPhysicalMaterial({
+      color: COLOR.frame,
+      roughness: 0.5,
+      metalness: 0,
+      transmission: 0.12,
+      thickness: 2,
+      ior: 1.4,
+    }),
+    chrome: new THREE.MeshStandardMaterial({ color: COLOR.chrome, roughness: 0.25, metalness: 0.9 }),
+    steel: new THREE.MeshStandardMaterial({ color: COLOR.steel, roughness: 0.2, metalness: 0.9 }),
+    propBlack: new THREE.MeshStandardMaterial({ color: COLOR.propBlack, roughness: 0.2, metalness: 0.05 }),
+    pcbBlack: new THREE.MeshStandardMaterial({ color: COLOR.pcbBlack, roughness: 0.7, metalness: 0.05 }),
+    shield: new THREE.MeshStandardMaterial({ color: COLOR.shield, roughness: 0.4, metalness: 0.8 }),
+    usb: new THREE.MeshStandardMaterial({ color: COLOR.usb, roughness: 0.35, metalness: 0.7 }),
+    button: new THREE.MeshStandardMaterial({ color: COLOR.button, roughness: 0.5, metalness: 0 }),
+    gold: new THREE.MeshStandardMaterial({ color: COLOR.gold, roughness: 0.3, metalness: 0.8 }),
+    pcbBlue: new THREE.MeshStandardMaterial({ color: COLOR.pcbBlue, roughness: 0.45, metalness: 0.05 }),
+    chip: new THREE.MeshStandardMaterial({ color: COLOR.chip, roughness: 0.6, metalness: 0.05 }),
+    amberGlass: new THREE.MeshPhysicalMaterial({ color: COLOR.amber, roughness: 0.15, metalness: 0, transmission: 0.55, ior: 1.5, thickness: 1.2 }),
+    perfboard: new THREE.MeshStandardMaterial({ color: COLOR.perfboard, roughness: 0.55, metalness: 0 }),
+    copper: new THREE.MeshStandardMaterial({ color: COLOR.copper, roughness: 0.35, metalness: 0.85 }),
+    mosfetBody: new THREE.MeshStandardMaterial({ color: COLOR.mosfetBody, roughness: 0.55, metalness: 0 }),
+    mosfetTab: new THREE.MeshStandardMaterial({ color: COLOR.mosfetTab, roughness: 0.3, metalness: 0.85 }),
+    leg: new THREE.MeshStandardMaterial({ color: COLOR.leg, roughness: 0.35, metalness: 0.7 }),
+    resistorBody: new THREE.MeshStandardMaterial({ color: COLOR.resistorBody, roughness: 0.5, metalness: 0 }),
+    foil: new THREE.MeshStandardMaterial({ color: COLOR.foil, roughness: 0.35, metalness: 0.6 }),
+    jst: new THREE.MeshStandardMaterial({ color: COLOR.jst, roughness: 0.5, metalness: 0 }),
+    zipTie: new THREE.MeshStandardMaterial({ color: COLOR.zipTie, roughness: 0.6, metalness: 0 }),
+  };
 
-  const motorBodyMat = new THREE.MeshStandardMaterial({ color: GOLD, roughness: 0.35, metalness: 0.8 });
-  const shaftMat = new THREE.MeshStandardMaterial({ color: SILVER, roughness: 0.2, metalness: 0.9 });
-  const propBlackMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.5 });
-  const propWhiteMat = new THREE.MeshStandardMaterial({ color: 0xe8e2d6, roughness: 0.5 });
+  const espTopMat = new THREE.MeshStandardMaterial({ map: esp32Texture(), roughness: 0.65 });
+  const mpuTopMat = new THREE.MeshStandardMaterial({ map: mpuTexture(), roughness: 0.45 });
+  const perfTopMat = new THREE.MeshStandardMaterial({ map: perfboardTopTexture(), roughness: 0.55 });
+  const perfBottomMat = new THREE.MeshStandardMaterial({ map: perfboardBottomTexture(), roughness: 0.4, metalness: 0.3 });
+  const battLabelMat = new THREE.MeshStandardMaterial({ map: batteryLabelTexture(), roughness: 0.4, metalness: 0.3 });
 
-  const pcbBlackMat = new THREE.MeshStandardMaterial({ color: PCB_BLACK, roughness: 0.6 });
-  const pcbBlueMat = new THREE.MeshStandardMaterial({ color: PCB_BLUE, roughness: 0.55 });
-  const shieldMat = new THREE.MeshStandardMaterial({ color: SILVER, roughness: 0.3, metalness: 0.6 });
-  const chipMat = new THREE.MeshStandardMaterial({ color: CHIP_BLACK, roughness: 0.4 });
-  const pinMat = new THREE.MeshStandardMaterial({ color: SILVER, roughness: 0.25, metalness: 0.8 });
-  const usbMat = new THREE.MeshStandardMaterial({ color: SILVER, roughness: 0.3, metalness: 0.7 });
-  const buttonMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.5 });
+  // ============================= FRAME (anchor) =============================
+  const frameGroup = new THREE.Group();
+  const plateRadial = 15; // half-width of the center plate footprint
+  const plate = new THREE.Mesh(roundedPlate(30, 30, 2, 3), mats.frame);
+  frameGroup.add(plate);
 
-  const batteryMat = new THREE.MeshStandardMaterial({ color: TAUPE, roughness: 0.5, metalness: 0.1 });
-  const batteryWireMat = new THREE.MeshStandardMaterial({ color: 0xc23030, roughness: 0.6 });
+  const armLength = 35;
+  const armAngles = [45, 135, 225, 315]; // FR, FL, RL, RR (nose = +Z)
+  const armRoot = plateRadial;
+  const motorTips = [];
 
-  // ---- Center plate (frame core) — stays put, stage 0 ----
-  const core = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.1, 0.9), carbonMat);
-  core.position.set(0, 0, 0);
-  group.add(core);
-  parts.push({ mesh: core, origin: core.position.clone(), explode: new THREE.Vector3(0, 0, 0), stage: 0 });
-
-  // 4 corner standoffs + screws on the core, purely decorative (stay with core)
-  [
-    [0.35, 0.35],
-    [0.35, -0.35],
-    [-0.35, 0.35],
-    [-0.35, -0.35],
-  ].forEach(([x, z]) => {
-    const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.02, 8), screwMat);
-    screw.position.set(x, 0.06, z);
-    core.add(screw);
-  });
-
-  // ---- Four arms — stage 1 (frame), tapered like the real carbon plate ----
-  const armLength = 1.6;
-  const armAngles = [45, 135, 225, 315];
-  const arms = [];
   armAngles.forEach((deg) => {
     const rad = THREE.MathUtils.degToRad(deg);
-    const armGroup = new THREE.Group();
+    const dir = new THREE.Vector3(Math.cos(rad), 0, Math.sin(rad));
 
     const shape = new THREE.Shape();
-    shape.moveTo(0, 0.09);
-    shape.lineTo(armLength, 0.05);
-    shape.lineTo(armLength, -0.05);
-    shape.lineTo(0, -0.09);
+    shape.moveTo(0, 4);
+    shape.lineTo(armLength, 5);
+    shape.lineTo(armLength, -5);
+    shape.lineTo(0, -4);
     shape.closePath();
-    const armGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.05, bevelEnabled: false });
+    const armGeo = new THREE.ExtrudeGeometry(shape, { depth: 2, bevelEnabled: true, bevelSize: 0.4, bevelThickness: 0.4, bevelSegments: 2 });
     armGeo.rotateX(Math.PI / 2);
-    const armMesh = new THREE.Mesh(armGeo, carbonLightMat);
-    armGroup.add(armMesh);
+    // slight upward sweep toward the tip
+    const pos = armGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const t = THREE.MathUtils.clamp(x / armLength, 0, 1);
+      pos.setY(i, pos.getY(i) + t * t * 3);
+    }
+    pos.needsUpdate = true;
+    armGeo.computeVertexNormals();
 
-    // rubber grommet at the arm root, alternating red/black like the frame kit
-    const grommet = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.02, 8, 16), deg === 45 || deg === 225 ? grommetRedMat : grommetBlackMat);
-    grommet.rotation.x = Math.PI / 2;
-    grommet.position.set(0.12, 0, 0);
-    armGroup.add(grommet);
+    const armMesh = new THREE.Mesh(armGeo, mats.frame);
+    const armPivot = new THREE.Group();
+    armPivot.add(armMesh);
+    armPivot.position.set(dir.x * armRoot, 1, dir.z * armRoot);
+    armPivot.rotation.y = -rad;
+    frameGroup.add(armPivot);
 
-    const dir = new THREE.Vector3(Math.cos(rad), 0, Math.sin(rad));
-    const origin = new THREE.Vector3(0, 0, 0);
-    armGroup.position.copy(origin);
-    armGroup.rotation.y = -rad;
-    group.add(armGroup);
+    const tipRadial = armRoot + armLength;
+    const tip = new THREE.Vector3(dir.x * tipRadial, 1 + 9, dir.z * tipRadial);
+    motorTips.push({ tip, dir, deg });
 
-    const explode = dir.clone().multiplyScalar(1.1);
-    parts.push({ mesh: armGroup, origin: origin.clone(), explode, stage: 1 });
-    arms.push({ dir, rad });
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 5.5, 12, 20, 1, true), mats.frame);
+    tube.position.set(tip.x, 6, tip.z);
+    frameGroup.add(tube);
+
+    const nub = new THREE.Mesh(new THREE.ConeGeometry(2, 3, 10), mats.frame);
+    nub.position.set(tip.x, -0.5, tip.z);
+    nub.rotation.x = Math.PI;
+    frameGroup.add(nub);
   });
 
-  // ---- Four motors — stage 2, sit at arm tips ----
-  arms.forEach(({ dir }) => {
-    const motorGroup = new THREE.Group();
-    const tip = dir.clone().multiplyScalar(armLength);
+  [0, 1, 2, 3].forEach((i) => {
+    const a = (i * Math.PI) / 2 + Math.PI / 4;
+    const zip = new THREE.Mesh(new THREE.TorusGeometry(4.5, 0.35, 6, 12), mats.zipTie);
+    zip.rotation.x = Math.PI / 2;
+    zip.position.set(Math.cos(a) * plateRadial * 1.6, 1, Math.sin(a) * plateRadial * 1.6);
+    frameGroup.add(zip);
+  });
 
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.16, 0.3, 20), motorBodyMat);
-    body.position.set(0, 0.15, 0);
-    motorGroup.add(body);
+  group.add(frameGroup);
 
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.14, 10), shaftMat);
-    shaft.position.set(0, 0.37, 0);
-    motorGroup.add(shaft);
+  // ============================= MOTORS (anchor) =============================
+  const motorWireExits = [];
+  motorTips.forEach(({ tip, dir }, i) => {
+    const motor = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(4.25, 4.25, 20, 24), mats.chrome);
+    body.position.y = 10;
+    motor.add(body);
 
-    // 4 trailing wires like the bundle in the photo
-    [0xc23030, 0x1a1a1a, 0xd6d6d6, 0x2255aa].forEach((color, i) => {
-      const from = new THREE.Vector3(0, 0.03, 0);
-      const to = new THREE.Vector3(-dir.x * 0.5 + (i - 1.5) * 0.03, -0.15, -dir.z * 0.5 + (i - 1.5) * 0.03);
-      motorGroup.add(wire(from, to, color));
+    // faint lengthwise seam line down the can
+    const seam = new THREE.Mesh(
+      new THREE.BoxGeometry(0.35, 19, 0.35),
+      new THREE.MeshStandardMaterial({ color: 0x8b8e90, roughness: 0.45, metalness: 0.85 })
+    );
+    seam.position.set(4.2, 10, 0);
+    motor.add(seam);
+
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 5, 8), mats.steel);
+    shaft.position.y = 22.5;
+    motor.add(shaft);
+
+    for (let v = 0; v < 3; v++) {
+      const a = (v / 3) * Math.PI * 2;
+      const vent = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.6, 6), mats.mosfetBody);
+      vent.position.set(Math.cos(a) * 2, 20.1, Math.sin(a) * 2);
+      motor.add(vent);
+    }
+
+    const isRedBlue = i % 2 === 0;
+    const wireColors = isRedBlue ? [COLOR.wireRed, COLOR.wireBlue] : [COLOR.wireBlack, COLOR.wireWhite];
+    const exitPoints = [];
+    wireColors.forEach((color, w) => {
+      const from = new THREE.Vector3(tip.x, tip.y - 8, tip.z).add(new THREE.Vector3(-dir.x * 1.5 * (w ? 1 : -1), 0, -dir.z * 1.5 * (w ? 1 : -1)));
+      const to = new THREE.Vector3(dir.x * (plateRadial + 4), 0.5, dir.z * (plateRadial + 4));
+      motor.add(wireMesh(from, to, color, 0.45, 2.5, seed++));
+      exitPoints.push(to.clone());
     });
+    motorWireExits.push({ point: exitPoints[0], colors: wireColors });
 
-    motorGroup.position.copy(tip);
-    group.add(motorGroup);
+    motor.position.set(tip.x, 0, tip.z);
+    group.add(motor);
 
-    const explode = dir.clone().multiplyScalar(1.4).add(new THREE.Vector3(0, 0.9, 0));
-    parts.push({ mesh: motorGroup, origin: tip.clone(), explode, stage: 2 });
-
-    // propeller — two angled blades + hub
+    // ---- Propeller (explodes) ----
     const propGroup = new THREE.Group();
-    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.03, 10), shaftMat);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 4, 16), mats.propBlack);
+    hub.position.y = 2;
     propGroup.add(hub);
-    [0, Math.PI].forEach((rot, i) => {
-      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.012, 0.09), i === 0 ? propBlackMat : propWhiteMat);
-      blade.position.set(0.27, 0, 0);
-      blade.rotation.z = 0.15;
-      const bladeGroup = new THREE.Group();
-      bladeGroup.rotation.y = rot;
-      bladeGroup.add(blade);
-      propGroup.add(bladeGroup);
+
+    // CW/CCW pairing: FL(135) + RR(315) share one rotation, FR(45) + RL(225) share the other
+    const deg = motorTips[i].deg;
+    const spinSign = deg === 135 || deg === 315 ? 1 : -1;
+
+    [0, Math.PI].forEach((rot) => {
+      const bladeShape = new THREE.Shape();
+      bladeShape.moveTo(0, -2.5);
+      bladeShape.quadraticCurveTo(14, -4.5, 32.5, -1);
+      bladeShape.quadraticCurveTo(29, 0, 32.5, 1.2);
+      bladeShape.quadraticCurveTo(14, 4.5, 0, 2.5);
+      bladeShape.closePath();
+      const bladeGeo = new THREE.ExtrudeGeometry(bladeShape, { depth: 0.6, bevelEnabled: true, bevelSize: 0.15, bevelThickness: 0.15, bevelSegments: 2, curveSegments: 10 });
+      bladeGeo.translate(3, 0, 0);
+      const blade = new THREE.Mesh(bladeGeo, mats.propBlack);
+      blade.rotation.x = spinSign * 0.28; // pitch
+      const bladePivot = new THREE.Group();
+      bladePivot.rotation.y = rot;
+      bladePivot.add(blade);
+      propGroup.add(bladePivot);
     });
-    propGroup.position.copy(tip).add(new THREE.Vector3(0, 0.44, 0));
+
+    propGroup.position.set(tip.x, 27, tip.z);
     group.add(propGroup);
     parts.push({
       mesh: propGroup,
       origin: propGroup.position.clone(),
-      explode: explode.clone().add(new THREE.Vector3(0, 0.25, 0)),
-      stage: 2,
+      explode: new THREE.Vector3(0, 90, 0),
+      spin: spinSign * Math.PI * 6,
+      stage: 6,
     });
   });
 
-  // ---- IMU (MPU6050 / GY-521) — stage 3, small blue breakout near core ----
-  const imuGroup = new THREE.Group();
-  const imuBoard = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.02, 0.32), pcbBlueMat);
-  imuGroup.add(imuBoard);
-  const imuChip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.1), chipMat);
-  imuChip.position.set(0, 0.02, 0);
-  imuGroup.add(imuChip);
-  // two large mounting holes top/bottom like the real board
-  [0.13, -0.13].forEach((z) => {
-    const hole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.022, 16), pcbBlackMat);
-    hole.position.set(0.08, 0.001, z);
-    imuGroup.add(hole);
+  // ============================= MPU6050 =============================
+  const mpuGroup = new THREE.Group();
+  const mpuBoard = new THREE.Mesh(roundedPlate(20, 15, 1, 1.2), mats.pcbBlue);
+  mpuGroup.add(mpuBoard);
+  const mpuTop = new THREE.Mesh(new THREE.PlaneGeometry(19, 14), mpuTopMat);
+  mpuTop.rotation.x = -Math.PI / 2;
+  mpuTop.position.y = 1.02;
+  mpuGroup.add(mpuTop);
+  const mpuChip = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 4), mats.chip);
+  mpuChip.position.set(0, 1.5, 0);
+  mpuGroup.add(mpuChip);
+  [-6, 6].forEach((z) => {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.35, 8, 16), mats.gold);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(7, 1.05, z);
+    mpuGroup.add(ring);
   });
-  const imuPins = pinHeaderRow(8, 0.028, pinMat);
-  imuPins.position.set(-0.09, 0, 0);
-  imuPins.rotation.y = Math.PI / 2;
-  imuGroup.add(imuPins);
-  imuGroup.position.set(0.15, 0.11, -0.15);
-  group.add(imuGroup);
-  parts.push({ mesh: imuGroup, origin: imuGroup.position.clone(), explode: new THREE.Vector3(0.4, 1.3, -0.4), stage: 3 });
+  const mpuCap = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 2, 10), mats.amberGlass);
+  mpuCap.position.set(-6, 2, 5);
+  mpuGroup.add(mpuCap);
+  const mpuPins = pinRow(8, 1.7, 4, mats.gold);
+  mpuPins.position.set(-2, 1, -7.5);
+  mpuGroup.add(mpuPins);
 
-  // ---- ESP32 DevKit V1 — stage 4 ----
+  const mpuOrigin = new THREE.Vector3(-6, 2, -6);
+  mpuGroup.position.copy(mpuOrigin);
+  group.add(mpuGroup);
+  parts.push({ mesh: mpuGroup, origin: mpuOrigin.clone(), explode: new THREE.Vector3(0, 18, 0), stage: 4 });
+
+  // ============================= POWER BOARD =============================
+  const pbGroup = new THREE.Group();
+  const pbBoard = new THREE.Mesh(roundedPlate(30, 25, 1.5, 1.5), mats.perfboard);
+  pbGroup.add(pbBoard);
+  // drilled-hole grid on top, copper strip traces underneath
+  const pbTop = new THREE.Mesh(new THREE.PlaneGeometry(29, 24), perfTopMat);
+  pbTop.rotation.x = -Math.PI / 2;
+  pbTop.position.y = 1.52;
+  pbGroup.add(pbTop);
+  const pbBottom = new THREE.Mesh(new THREE.PlaneGeometry(29, 24), perfBottomMat);
+  pbBottom.rotation.x = Math.PI / 2;
+  pbBottom.position.y = -0.02;
+  pbGroup.add(pbBottom);
+
+  for (let m = 0; m < 4; m++) {
+    const mosfet = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(4.5, 4.2, 1.6), mats.mosfetBody);
+    body.position.y = 2.1;
+    mosfet.add(body);
+    const tab = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2, 0.4), mats.mosfetTab);
+    tab.position.set(0, 4.3, -1);
+    mosfet.add(tab);
+    const hole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.5, 10), mats.mosfetBody);
+    hole.rotation.x = Math.PI / 2;
+    hole.position.set(0, 4.3, -1);
+    mosfet.add(hole);
+    [-1.4, 0, 1.4].forEach((x) => {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.2, 0.4), mats.leg);
+      leg.position.set(x, 0.9, 0.8);
+      leg.rotation.x = 0.35;
+      mosfet.add(leg);
+    });
+    mosfet.position.set(-9 + m * 6, 1.5, -6);
+    pbGroup.add(mosfet);
+  }
+
+  for (let d = 0; d < 4; d++) {
+    const diode = new THREE.Group();
+    const glass = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 4, 10), mats.amberGlass);
+    glass.rotation.z = Math.PI / 2;
+    diode.add(glass);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(1.02, 1.02, 0.5, 10), mats.mosfetBody);
+    band.rotation.z = Math.PI / 2;
+    band.position.x = 1.3;
+    diode.add(band);
+    diode.position.set(-9 + d * 6, 1.5, 2);
+    pbGroup.add(diode);
+  }
+
+  const resistorColors = [0x7a4a1e, 0x0d0d0d, 0xc9a03a];
+  for (let r = 0; r < 5; r++) {
+    const res = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 6, 10), mats.resistorBody);
+    body.rotation.z = Math.PI / 2;
+    res.add(body);
+    resistorColors.forEach((c, ci) => {
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(1.02, 1.02, 0.5, 10), new THREE.MeshStandardMaterial({ color: c, roughness: 0.4 }));
+      band.rotation.z = Math.PI / 2;
+      band.position.x = -1.5 + ci * 1.2;
+      res.add(band);
+    });
+    res.position.set(-10 + r * 5, 1.5, 7);
+    pbGroup.add(res);
+  }
+
+  [0, 1, 2].forEach((w) => {
+    const from = new THREE.Vector3(-9 + w * 6, 3.5, -6);
+    const to = new THREE.Vector3(-9 + (w + 1) * 6, 3.5, 2);
+    pbGroup.add(wireMesh(from, to, w % 2 ? COLOR.wireBlack : COLOR.wireRed, 0.35, 1, seed++));
+  });
+
+  const pbOrigin = new THREE.Vector3(3, 2, 4);
+  pbGroup.position.copy(pbOrigin);
+  group.add(pbGroup);
+  parts.push({ mesh: pbGroup, origin: pbOrigin.clone(), explode: new THREE.Vector3(0, 15, 0), stage: 3 });
+
+  // ============================= ESP32 =============================
   const espGroup = new THREE.Group();
-  const espBoard = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.025, 0.62), pcbBlackMat);
+  const espBoard = new THREE.Mesh(roundedPlate(28.5, 51.5, 1.6, 2), mats.pcbBlack);
   espGroup.add(espBoard);
-  const espShield = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.03, 0.28), shieldMat);
-  espShield.position.set(0, 0.025, 0.1);
-  espGroup.add(espShield);
-  const usb = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.03, 0.06), usbMat);
-  usb.position.set(0, 0.02, -0.32);
+  const espTop = new THREE.Mesh(new THREE.PlaneGeometry(26, 48), espTopMat);
+  espTop.rotation.x = -Math.PI / 2;
+  espTop.position.y = 1.62;
+  espGroup.add(espTop);
+
+  const shield = new THREE.Mesh(new THREE.BoxGeometry(18, 3, 25), mats.shield);
+  shield.position.set(0, 1.6 + 1.5, 10);
+  espGroup.add(shield);
+
+  const usb = new THREE.Mesh(new THREE.BoxGeometry(8, 5, 5), mats.usb);
+  usb.position.set(0, 1.6 + 2.5, -25 - 1);
   espGroup.add(usb);
-  [0.09, -0.09].forEach((x) => {
-    const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.015, 8), buttonMat);
-    btn.rotation.x = Math.PI / 2;
-    btn.position.set(x, 0.02, -0.24);
+
+  [-6, 6].forEach((x) => {
+    const btn = new THREE.Mesh(new THREE.BoxGeometry(4, 2, 4), mats.button);
+    btn.position.set(x, 1.6 + 1, -18);
     espGroup.add(btn);
   });
-  [1, -1].forEach((side) => {
-    const pins = pinHeaderRow(15, 0.038, pinMat);
-    pins.position.set(side * 0.15, 0.012, 0);
+
+  [[-5, -22], [7, -20], [10, -16]].forEach(([x, z], i) => {
+    const smd = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 2, 10), i === 2 ? mats.amberGlass : mats.steel);
+    smd.position.set(x, 1.6 + 1, z);
+    espGroup.add(smd);
+  });
+  [[-9, -12, 0xcc2b2b], [-9, -8, 0x2255aa]].forEach(([x, z, c]) => {
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.8, 8, 8), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.3, roughness: 0.3 }));
+    led.position.set(x, 1.6 + 0.8, z);
+    espGroup.add(led);
+  });
+
+  [-13, 13].forEach((x) => {
+    const pins = pinRow(15, 3.2, 6, mats.gold);
+    pins.rotation.y = Math.PI / 2;
+    pins.position.set(x, 0, 0);
     espGroup.add(pins);
   });
-  espGroup.position.set(-0.05, 0.09, 0.05);
+
+  const espOrigin = new THREE.Vector3(3, 2 + 1.5, 4);
+  espGroup.position.copy(espOrigin);
   group.add(espGroup);
-  parts.push({ mesh: espGroup, origin: espGroup.position.clone(), explode: new THREE.Vector3(-0.9, 1.8, 0.6), stage: 4 });
+  parts.push({ mesh: espGroup, origin: espOrigin.clone(), explode: new THREE.Vector3(0, 45, 0), stage: 5 });
 
-  // ---- Battery — stage 5, 1S LiPo pouch under the core ----
+  // ============================= BATTERY =============================
   const battGroup = new THREE.Group();
-  const battBody = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.16, 0.32), batteryMat);
+  const battBody = new THREE.Mesh(roundedPlate(40, 30, 5, 3), mats.foil);
   battGroup.add(battBody);
-  const battPlug = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.04), pcbBlackMat);
-  battPlug.position.set(0, 0, -0.18);
-  battGroup.add(battPlug);
-  [-0.02, 0.02].forEach((x) => battGroup.add(wire(new THREE.Vector3(x, 0.03, -0.16), new THREE.Vector3(x, 0.03, -0.2), x < 0 ? 0xc23030 : 0x1a1a1a)));
-  battGroup.position.set(0, -0.14, 0);
-  group.add(battGroup);
-  parts.push({ mesh: battGroup, origin: battGroup.position.clone(), explode: new THREE.Vector3(0, -1.5, 0), stage: 5 });
+  const battTop = new THREE.Mesh(new THREE.PlaneGeometry(37, 27), battLabelMat);
+  battTop.rotation.x = -Math.PI / 2;
+  battTop.position.y = 5.05;
+  battGroup.add(battTop);
+  const plug = new THREE.Mesh(new THREE.BoxGeometry(7, 5, 4), mats.jst);
+  plug.position.set(0, 2.5, -18);
+  battGroup.add(plug);
+  [-1, 1].forEach((x) => {
+    battGroup.add(wireMesh(new THREE.Vector3(x, 2.5, -15), new THREE.Vector3(x, 2.5, -20), x < 0 ? COLOR.wireRed : COLOR.wireBlack, 0.4, 0.5, seed++));
+  });
 
-  return { group, parts, stageCount: 6 };
+  const battOrigin = new THREE.Vector3(0, -5, 0);
+  battGroup.position.copy(battOrigin);
+  group.add(battGroup);
+  parts.push({ mesh: battGroup, origin: battOrigin.clone(), explode: new THREE.Vector3(0, -35, 0), stage: 2 });
+
+  // ===================== dynamic wiring (rebuilt each frame) =====================
+  const jumperSpecs = [
+    { color: COLOR.wireRed, offset: -3 },
+    { color: COLOR.wireBlack, offset: -1 },
+    { color: COLOR.wireYellow, offset: 1 },
+    { color: COLOR.wireBlue, offset: 3 },
+  ];
+  jumperSpecs.forEach(({ color, offset }) => {
+    const mesh = makeDynamicWire(color, 0.4, 5);
+    group.add(mesh);
+    dynamicWires.push({
+      mesh,
+      getFrom: () => mpuGroup.position.clone().add(new THREE.Vector3(offset, 1, -7.5)),
+      getTo: () => espGroup.position.clone().add(new THREE.Vector3(-13, 0, -20 + offset * 2)),
+    });
+  });
+
+  motorWireExits.forEach(({ point, colors }, i) => {
+    const mesh = makeDynamicWire(colors[0], 0.45, 6);
+    group.add(mesh);
+    dynamicWires.push({
+      mesh,
+      getFrom: () => point.clone(),
+      getTo: () => pbGroup.position.clone().add(new THREE.Vector3(-9 + i * 6, 3.5, -6)),
+    });
+  });
+
+  return { group, parts, dynamicWires, stageCount: 7 };
+}
+
+export function updateDynamicWires(dynamicWires) {
+  dynamicWires.forEach(({ mesh, getFrom, getTo }) => {
+    mesh.geometry.dispose();
+    mesh.geometry = buildTubeGeometry(getFrom(), getTo(), mesh.geometry.parameters?.radius ?? 0.4, 4);
+  });
 }
