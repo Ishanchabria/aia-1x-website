@@ -176,6 +176,92 @@ function batteryLabelTexture() {
   }, 256, 192);
 }
 
+// ---------------------------------------------------------------------------
+// Propeller blade, lofted from stacked airfoil sections.
+//
+// The twist is the point of this: geometric pitch runs ~30 deg at the root down
+// to ~12 deg at the tip (the tip travels faster, so it needs less pitch). That
+// continuously changing surface angle is what a specular highlight travels
+// along. A single fixed pitch — which is what this was before — gives a flat
+// plate with nothing for the highlight to sweep across, and no amount of
+// material tuning recovers it.
+// ---------------------------------------------------------------------------
+const BLADE_SECTIONS = 16;
+const BLADE_PROFILE_PTS = 14;
+
+// Asymmetric section: flat-ish underside, curved upper surface, thin trailing
+// edge. Returns points around the profile in chord-normalised space.
+function airfoilProfile(thicknessRatio, camber) {
+  const pts = [];
+  // upper surface, leading edge -> trailing edge
+  for (let i = 0; i < BLADE_PROFILE_PTS; i++) {
+    const x = i / (BLADE_PROFILE_PTS - 1);
+    const thick = thicknessRatio * (1.4 * Math.sqrt(Math.max(x, 0)) - 0.6 * x - 0.2 * x * x);
+    const mid = camber * Math.sin(Math.PI * Math.pow(x, 0.85));
+    pts.push([x, mid + thick]);
+  }
+  // lower surface, trailing edge -> leading edge (flatter)
+  for (let i = BLADE_PROFILE_PTS - 1; i >= 0; i--) {
+    const x = i / (BLADE_PROFILE_PTS - 1);
+    const thick = thicknessRatio * (1.4 * Math.sqrt(Math.max(x, 0)) - 0.6 * x - 0.2 * x * x);
+    const mid = camber * Math.sin(Math.PI * Math.pow(x, 0.85));
+    pts.push([x, mid - thick * 0.35]);
+  }
+  return pts;
+}
+
+// `mirror` flips the blade for the counter-rotating pair. Mirroring a twisted
+// surface also reverses winding, so the section order is flipped to compensate
+// or the normals invert and the blade renders inside-out.
+function buildBladeGeometry(span, mirror) {
+  const ring = BLADE_PROFILE_PTS * 2;
+  const verts = [];
+
+  for (let s = 0; s < BLADE_SECTIONS; s++) {
+    const t = s / (BLADE_SECTIONS - 1);
+
+    // chord: narrow root, widest around half span, rounding off at the tip
+    const chord = 4 + 5 * Math.sin(Math.PI * Math.min(t * 1.05, 1)) * (1 - 0.35 * t * t);
+    // thickness 12% of chord at root thinning to 6% at tip
+    const thickRatio = 0.12 - 0.06 * t;
+    const camber = 0.055 * (1 - 0.5 * t);
+    // 30deg root -> 12deg tip
+    const pitch = THREE.MathUtils.degToRad(30 - 18 * t) * (mirror ? -1 : 1);
+    const y = t * span;
+
+    const profile = airfoilProfile(thickRatio, camber);
+    for (const [px, py] of profile) {
+      // centre the chord, then rotate by the section's pitch
+      const cx = (px - 0.4) * chord;
+      const cy = py * chord;
+      const x = cx * Math.cos(pitch) - cy * Math.sin(pitch);
+      const z = cx * Math.sin(pitch) + cy * Math.cos(pitch);
+      verts.push(mirror ? -x : x, y, z);
+    }
+  }
+
+  const position = new Float32Array(verts);
+  const indices = [];
+  for (let s = 0; s < BLADE_SECTIONS - 1; s++) {
+    for (let i = 0; i < ring; i++) {
+      const a = s * ring + i;
+      const b = s * ring + ((i + 1) % ring);
+      const c = (s + 1) * ring + i;
+      const d = (s + 1) * ring + ((i + 1) % ring);
+      if (mirror) indices.push(a, c, b, b, c, d);
+      else indices.push(a, b, c, b, d, c);
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(position, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  // blade runs along local +X like the old one did, so callers are unchanged
+  geo.rotateZ(-Math.PI / 2);
+  return geo;
+}
+
 // ---- geometry helpers ----
 function roundedRectShape(w, h, r) {
   const shape = new THREE.Shape();
@@ -288,10 +374,10 @@ export function createDrone(maxAnisotropy = 1) {
     propBlack: new THREE.MeshPhysicalMaterial({
       color: COLOR.propBlack,
       metalness: 0,
-      roughness: 0.52,
-      clearcoat: 0.35,
-      clearcoatRoughness: 0.38,
-      envMapIntensity: 0.3,
+      roughness: 0.18,
+      clearcoat: 1,
+      clearcoatRoughness: 0.12,
+      envMapIntensity: 0.7,
     }),
     pcbBlack: new THREE.MeshStandardMaterial({ color: COLOR.pcbBlack, metalness: 0, roughness: 0.7, roughnessMap: microNoise }),
     shield: new THREE.MeshStandardMaterial({ color: COLOR.shield, metalness: 0.95, roughness: 0.42, envMapIntensity: 0.6 }),
@@ -447,9 +533,16 @@ export function createDrone(maxAnisotropy = 1) {
 
     // ---- Propeller (explodes) ----
     const propGroup = new THREE.Group();
-    const hub = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 4, 16), mats.propBlack);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 4, 32), mats.propBlack);
     hub.position.y = 2;
     propGroup.add(hub);
+    const bore = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 4.2, 16, 1, true), mats.chip);
+    bore.position.y = 2;
+    propGroup.add(bore);
+    const boreChamfer = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.12, 6, 20), mats.shaft);
+    boreChamfer.rotation.x = Math.PI / 2;
+    boreChamfer.position.y = 4;
+    propGroup.add(boreChamfer);
 
     // CW/CCW pairing: FL(135) + RR(315) share one rotation, FR(45) + RL(225) share the other
     const deg = motorTips[i].deg;
@@ -460,17 +553,10 @@ export function createDrone(maxAnisotropy = 1) {
       // back on itself at the tip, which self-intersected, broke triangulation
       // and left that region with garbage normals (it shaded bright even with
       // every light off).
-      const bladeShape = new THREE.Shape();
-      bladeShape.moveTo(0, -2.5);
-      bladeShape.quadraticCurveTo(16, -4.6, 29.5, -1.7);
-      bladeShape.quadraticCurveTo(32.5, 0, 29.5, 1.7);
-      bladeShape.quadraticCurveTo(16, 4.6, 0, 2.5);
-      bladeShape.closePath();
-      const bladeGeo = new THREE.ExtrudeGeometry(bladeShape, { depth: 0.6, bevelEnabled: true, bevelSize: 0.15, bevelThickness: 0.15, bevelSegments: 2, curveSegments: 10 });
+      const bladeGeo = buildBladeGeometry(32.5, spinSign < 0);
       bladeGeo.translate(3, 0, 0);
-      bladeGeo.computeVertexNormals();
       const blade = new THREE.Mesh(bladeGeo, mats.propBlack);
-      blade.rotation.x = spinSign * 0.28; // pitch
+      // pitch now lives in the geometry's twist, not a flat rotation
       const bladePivot = new THREE.Group();
       bladePivot.rotation.y = rot;
       bladePivot.add(blade);
@@ -484,7 +570,6 @@ export function createDrone(maxAnisotropy = 1) {
         ghostMat.opacity = 0.28 - gi * 0.08;
         ghostMat.depthWrite = false;
         const ghost = new THREE.Mesh(bladeGeo, ghostMat);
-        ghost.rotation.x = spinSign * 0.28;
         const ghostPivot = new THREE.Group();
         ghostPivot.rotation.y = rot - spinSign * lag;
         ghostPivot.add(ghost);
