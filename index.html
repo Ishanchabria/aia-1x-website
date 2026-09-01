@@ -59,7 +59,12 @@
     <section id="scroll-scene" class="scroll-scene">
       <div class="scene-pin">
         <span class="watermark" aria-hidden="true">AIA-1X</span>
-        <canvas id="drone-canvas"></canvas>
+        <canvas id="drone-canvas" role="img"
+          aria-label="Interactive 3D model of the AIA-1X micro-quadcopter, which separates into its component parts as the page scrolls."></canvas>
+        <div class="gl-fallback" id="gl-fallback" hidden>
+          <img src="/drone-fallback.webp" alt="The assembled AIA-1X micro-quadcopter" />
+          <p>The interactive 3D view needs WebGL, which isn’t available in this browser.</p>
+        </div>
         <div class="scene-captions">
           <div class="caption caption-hero" data-stage="0">
             <span class="eyebrow">AIA-1X</span>

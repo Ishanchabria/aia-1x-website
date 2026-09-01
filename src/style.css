@@ -173,6 +173,31 @@ p {
   transition: height 0.15s linear;
 }
 
+/* ---------------------------- WebGL fallback ----------------------------- */
+.gl-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.gl-fallback img {
+  max-width: min(70vw, 620px);
+  height: auto;
+}
+
+.gl-fallback p {
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+  max-width: 32ch;
+}
+
 /* ------------------------------ boot / loading --------------------------- */
 .boot {
   position: fixed;
