@@ -1,123 +1,179 @@
+/* ===========================================================================
+   WARM palette — DOM only. The 3D canvas runs a cool blue-black palette; the
+   contrast between a cool object and warm UI is deliberate, so no blue from
+   the scene may leak into type, chrome, or accents here.
+   =========================================================================== */
 :root {
-  --bg: #202020;
+  --bg-deep: #08080a;
+  --bg-raised: #101014;
+  --fg: #f4f2ee;
+  --fg-muted: rgba(244, 242, 238, 0.55);
+  --fg-faint: rgba(244, 242, 238, 0.18);
   --accent: #c25640;
-  --deep-red: #91170c;
-  --headline: #fae1c3;
-  --body: #847869;
+  --accent-deep: #91170c;
 
-  --font-display: "Space Grotesk", sans-serif;
+  --font-display: "Space Grotesk", "Inter", sans-serif;
   --font-body: "Inter", sans-serif;
   --font-mono: "IBM Plex Mono", monospace;
+
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--bg);
-  color: var(--body);
+  background: var(--bg-deep);
+  color: var(--fg-muted);
   font-family: var(--font-body);
   overflow-x: clip;
+  -webkit-font-smoothing: antialiased;
 }
 
+/* Layered studio background: a pool of light behind the drone falling to
+   near-black at the edges, so it reads as a lit room rather than a dark box. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(120vh 90vh at 50% 38%, #1a1a20 0%, #101014 45%, var(--bg-deep) 78%);
+}
+
+/* Grain. Large dark gradients band badly on 8-bit displays; this hides it
+   completely for almost nothing. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------------------------------- type --------------------------------- */
 h1,
 h2,
 h3 {
   font-family: var(--font-display);
-  color: var(--headline);
-  margin: 0 0 0.5em;
-  line-height: 1.1;
+  color: var(--fg);
+  margin: 0 0 0.4em;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
+h1 {
+  font-size: clamp(3rem, 7vw, 6rem);
 }
 
 p {
-  line-height: 1.6;
-  max-width: 60ch;
+  line-height: 1.65;
+  font-size: 0.95rem;
+  max-width: 46ch;
+  color: var(--fg-muted);
 }
 
 .eyebrow {
   display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.15em;
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
   color: var(--accent);
-  margin-bottom: 0.75em;
+  margin-bottom: 1rem;
 }
 
-/* Top nav */
+/* -------------------------------- top nav -------------------------------- */
 .topnav {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 50;
+  z-index: 60;
   display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  padding: 1.25rem 2rem;
-  pointer-events: none;
-  mix-blend-mode: difference;
+  align-items: center;
+  gap: 2rem;
+  padding: 1.1rem 2.5rem;
+  transition: background 0.4s var(--ease), backdrop-filter 0.4s var(--ease),
+    border-color 0.4s var(--ease);
+  border-bottom: 1px solid transparent;
+}
+
+.topnav.is-stuck {
+  background: rgba(8, 8, 10, 0.7);
+  backdrop-filter: blur(12px);
+  border-bottom-color: var(--fg-faint);
 }
 
 .topnav-brand {
   font-family: var(--font-display);
   font-weight: 700;
-  color: var(--headline);
-  letter-spacing: 0.05em;
+  letter-spacing: -0.02em;
+  color: var(--fg);
 }
 
-.topnav-sub {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--body);
+.topnav-links {
+  display: flex;
+  gap: 1.75rem;
+  margin-left: auto;
 }
 
-/* Telemetry HUD */
-.hud {
+.topnav-links a,
+.topnav-action {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  text-decoration: none;
+  transition: color 0.25s var(--ease);
+}
+
+.topnav-links a:hover {
+  color: var(--fg);
+}
+
+.topnav-action {
+  color: var(--accent);
+}
+
+/* ------------------------------ progress rail ---------------------------- */
+.rail {
   position: fixed;
-  right: 1.5rem;
+  left: 2.5rem;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 50;
+  z-index: 55;
+  height: 34vh;
   display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  padding: 1rem 1.1rem;
-  background: rgba(32, 32, 32, 0.55);
-  border: 1px solid rgba(132, 120, 105, 0.25);
-  border-radius: 4px;
-  backdrop-filter: blur(6px);
-  font-family: var(--font-mono);
-  min-width: 140px;
+  align-items: stretch;
 }
 
-.hud-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  font-size: 0.7rem;
+.rail-track {
+  position: relative;
+  width: 1px;
+  background: var(--fg-faint);
 }
 
-.hud-label {
-  color: var(--body);
-  letter-spacing: 0.1em;
+.rail-fill {
+  position: absolute;
+  inset: 0 0 auto 0;
+  width: 1px;
+  height: 0;
+  background: var(--accent);
+  transition: height 0.15s linear;
 }
 
-.hud-value {
-  color: var(--accent);
-  font-weight: 500;
-}
-
-@media (max-width: 720px) {
-  .hud {
-    display: none;
-  }
-}
-
-/* Scroll-driven 3D scene */
+/* --------------------------- pinned 3D scene ----------------------------- */
 .scroll-scene {
   position: relative;
   height: 700vh;
@@ -131,128 +187,170 @@ p {
   overflow: hidden;
 }
 
+/* Giant ghosted wordmark the drone partially occludes. */
+.watermark {
+  position: absolute;
+  top: 46%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 18vw;
+  letter-spacing: -0.05em;
+  color: var(--fg-faint);
+  white-space: nowrap;
+  user-select: none;
+  z-index: 0;
+}
+
 #drone-canvas {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   display: block;
+  z-index: 1;
 }
 
 .scene-captions {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  z-index: 2;
 }
 
 .caption {
   position: absolute;
-  left: 6vw;
+  left: 8vw;
   top: 50%;
   transform: translateY(-50%);
-  max-width: 460px;
+  width: min(34vw, 460px);
   opacity: 0;
 }
 
-.caption[data-stage="0"] {
-  top: 60%;
-}
-
-.caption h1 {
-  font-size: clamp(2rem, 4.5vw, 3.5rem);
-}
-
 .caption h2 {
-  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
 }
 
-.caption p {
-  color: var(--body);
+.caption-hero {
+  top: 50%;
+  width: min(46vw, 620px);
 }
 
-/* Static content sections */
+.cta-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  pointer-events: auto;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.8rem 1.9rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: transform 0.3s var(--ease), background 0.3s var(--ease),
+    border-color 0.3s var(--ease);
+}
+
+.cta-solid {
+  background: var(--accent);
+  color: #14100f;
+}
+
+.cta-solid:hover {
+  transform: translateY(-2px);
+  background: #d0654e;
+}
+
+.cta-ghost {
+  border: 1px solid var(--fg-faint);
+  color: var(--fg);
+}
+
+.cta-ghost:hover {
+  transform: translateY(-2px);
+  border-color: var(--fg-muted);
+}
+
+.scroll-cue {
+  position: absolute;
+  bottom: 2.5rem;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-right: 1px solid var(--fg-muted);
+  border-bottom: 1px solid var(--fg-muted);
+  transform: rotate(45deg);
+  animation: bob 2.4s var(--ease) infinite;
+  z-index: 3;
+}
+
+@keyframes bob {
+  0%, 100% { transform: rotate(45deg) translate(0, 0); opacity: 0.5; }
+  50%      { transform: rotate(45deg) translate(5px, 5px); opacity: 1; }
+}
+
+/* ------------------------------ telemetry HUD ---------------------------- */
+.hud {
+  position: fixed;
+  right: 2.5rem;
+  bottom: 3rem;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1rem 1.15rem;
+  background: rgba(8, 8, 10, 0.6);
+  backdrop-filter: blur(12px);
+  border-left: 1px solid var(--fg-faint);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  min-width: 168px;
+}
+
+.hud-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  font-size: 0.7rem;
+}
+
+.hud-label {
+  color: var(--fg-faint);
+  letter-spacing: 0.14em;
+}
+
+.hud-value {
+  color: var(--accent);
+  text-align: right;
+}
+
+/* ---------------------------- static sections ---------------------------- */
 .section {
   position: relative;
-  padding: 8rem 2rem;
-  border-top: 1px solid rgba(132, 120, 105, 0.15);
+  padding: 10rem 2.5rem;
+  border-top: 1px solid var(--fg-faint);
 }
 
 .section-inner {
-  max-width: 860px;
+  max-width: 980px;
   margin: 0 auto;
 }
 
 .body-text {
-  max-width: 70ch;
-  font-size: 1.05rem;
+  max-width: 52ch;
+  font-size: 1rem;
 }
 
-/* Build log */
-.stage-list {
-  list-style: none;
-  padding: 0;
-  margin: 2rem 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.stage-item {
-  display: grid;
-  grid-template-columns: 3rem 1fr auto;
-  align-items: center;
-  gap: 1.5rem;
-  padding: 1.5rem 0;
-  border-bottom: 1px solid rgba(132, 120, 105, 0.15);
-}
-
-.stage-num {
-  font-family: var(--font-mono);
-  color: var(--body);
-  font-size: 0.85rem;
-}
-
-.stage-item h3 {
-  font-size: 1.1rem;
-  margin-bottom: 0.25rem;
-}
-
-.stage-item p {
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-.stage-status {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-  padding: 0.35rem 0.7rem;
-  border-radius: 3px;
-  white-space: nowrap;
-  border: 1px solid rgba(132, 120, 105, 0.3);
-  color: var(--body);
-}
-
-.stage-item[data-status="done"] .stage-status {
-  color: var(--headline);
-  border-color: var(--accent);
-  background: rgba(194, 86, 64, 0.15);
-}
-
-.stage-item[data-status="progress"] .stage-status {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.stage-item[data-status="done"] .stage-num {
-  color: var(--accent);
-}
-
-/* Concept photo */
 .concept-layout {
   display: grid;
   grid-template-columns: 1.3fr 1fr;
-  gap: 3rem;
+  gap: 4rem;
   align-items: center;
   max-width: none;
 }
@@ -266,46 +364,109 @@ p {
   width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: contain;
-  background: #f2ebe0;
-  border-radius: 6px;
+  background: var(--bg-raised);
+  border: 1px solid var(--fg-faint);
+  border-radius: 10px;
   padding: 1.5rem;
 }
 
 .concept-photo figcaption {
-  margin-top: 0.75rem;
+  margin-top: 0.9rem;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--body);
+  font-size: 0.72rem;
+  color: var(--fg-muted);
 }
 
-@media (max-width: 800px) {
-  .concept-layout {
-    grid-template-columns: 1fr;
-  }
+/* build log */
+.stage-list {
+  list-style: none;
+  padding: 0;
+  margin: 2.5rem 0 0;
 }
 
-/* Parts grid (spec sheet) */
+.stage-item {
+  display: grid;
+  grid-template-columns: 3rem 1fr auto;
+  align-items: center;
+  gap: 1.75rem;
+  padding: 1.6rem 0;
+  border-bottom: 1px solid var(--fg-faint);
+}
+
+.stage-num,
+.stage-status {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.stage-num {
+  color: var(--fg-faint);
+  font-size: 0.85rem;
+}
+
+.stage-item h3 {
+  font-size: 1.05rem;
+  margin-bottom: 0.3rem;
+}
+
+.stage-item p {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.stage-status {
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid var(--fg-faint);
+  color: var(--fg-muted);
+}
+
+.stage-item[data-status="done"] .stage-status {
+  color: var(--fg);
+  border-color: var(--accent);
+  background: rgba(194, 86, 64, 0.16);
+}
+
+.stage-item[data-status="done"] .stage-num,
+.stage-item[data-status="progress"] .stage-status {
+  color: var(--accent);
+}
+
+.stage-item[data-status="progress"] .stage-status {
+  border-color: var(--accent);
+}
+
+/* parts / spec */
 .parts-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1.25rem;
-  margin: 2rem 0 2.5rem;
+  margin: 2.5rem 0 3rem;
 }
 
-.part-card {
+.part-card,
+.material-card {
   margin: 0;
-  background: var(--bg);
-  border: 1px solid rgba(132, 120, 105, 0.25);
-  border-radius: 6px;
+  background: var(--bg-raised);
+  border: 1px solid var(--fg-faint);
+  border-radius: 10px;
   overflow: hidden;
-  transition: border-color 0.2s ease;
+  transition: border-color 0.3s var(--ease), transform 0.3s var(--ease);
 }
 
-.part-card:hover {
+.part-card:hover,
+.material-card:hover {
   border-color: var(--accent);
+  transform: translateY(-3px);
 }
 
-.part-card img {
+.part-card img,
+.material-card img,
+.spec-photo img {
   display: block;
   width: 100%;
   aspect-ratio: 1 / 1;
@@ -317,27 +478,27 @@ p {
 .part-card figcaption {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  padding: 0.9rem 1rem 1.1rem;
+  gap: 0.25rem;
+  padding: 0.95rem 1.05rem 1.15rem;
 }
 
 .part-name {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
-  color: var(--body);
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  color: var(--fg-muted);
   text-transform: uppercase;
 }
 
 .part-value {
   font-family: var(--font-display);
   font-size: 0.95rem;
-  color: var(--headline);
+  color: var(--fg);
 }
 
 .materials-eyebrow {
   display: block;
-  margin-top: 0.5rem;
+  margin-top: 1rem;
 }
 
 .materials-grid {
@@ -347,78 +508,57 @@ p {
   margin-top: 1.5rem;
 }
 
-.material-card {
-  margin: 0;
-  background: var(--bg);
-  border: 1px solid rgba(132, 120, 105, 0.2);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.material-card img {
-  display: block;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: contain;
-  background: #f2ebe0;
-  padding: 0.9rem;
-}
-
 .material-card figcaption {
-  padding: 0.6rem 0.75rem 0.8rem;
+  padding: 0.65rem 0.75rem 0.85rem;
   font-family: var(--font-mono);
-  font-size: 0.68rem;
-  color: var(--body);
+  font-size: 0.66rem;
+  color: var(--fg-muted);
   text-align: center;
 }
 
-@media (max-width: 760px) {
-  .parts-grid,
-  .materials-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-/* Spec table */
 .spec-table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 2rem;
   font-family: var(--font-mono);
-  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
 }
 
 .spec-table td {
-  padding: 0.9rem 0;
-  border-bottom: 1px solid rgba(132, 120, 105, 0.15);
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--fg-faint);
 }
 
 .spec-table td:first-child {
-  color: var(--body);
+  color: var(--fg-muted);
   width: 40%;
 }
 
 .spec-table td:last-child {
-  color: var(--headline);
+  color: var(--fg);
 }
 
-/* Roadmap */
+/* roadmap */
 .roadmap-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1px;
-  margin-top: 2rem;
-  background: rgba(132, 120, 105, 0.15);
+  margin-top: 2.5rem;
+  background: var(--fg-faint);
+  border: 1px solid var(--fg-faint);
+  border-radius: 10px;
+  overflow: hidden;
 }
 
 .roadmap-item {
-  background: var(--bg);
-  padding: 2rem 1.25rem;
+  background: var(--bg-deep);
+  padding: 2.25rem 1.35rem;
 }
 
 .roadmap-item h3 {
-  font-size: 1.1rem;
-  color: var(--body);
+  font-size: 1.05rem;
+  color: var(--fg-muted);
 }
 
 .roadmap-item p {
@@ -427,16 +567,83 @@ p {
 }
 
 .roadmap-item.active {
-  background: rgba(194, 86, 64, 0.1);
+  background: var(--bg-raised);
 }
 
 .roadmap-item.active h3 {
   color: var(--accent);
 }
 
-@media (max-width: 760px) {
+.footer {
+  padding: 4rem 2.5rem;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--fg-muted);
+}
+
+/* -------------------------------- reveal --------------------------------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.8s var(--ease), transform 0.8s var(--ease);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ------------------------------ responsive ------------------------------- */
+@media (max-width: 900px) {
+  .concept-layout,
+  .parts-grid,
+  .materials-grid,
   .roadmap-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .rail,
+  .topnav-links {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .section {
+    padding: 6rem 1.5rem;
+  }
+  .topnav {
+    padding: 1rem 1.5rem;
+  }
+  .scene-pin {
+    height: 100vh;
+  }
+  #drone-canvas {
+    height: 55vh;
+    inset: 0 0 auto 0;
+  }
+  .watermark {
+    font-size: 30vw;
+    top: 27%;
+  }
+  .caption,
+  .caption-hero {
+    left: 1.5rem;
+    right: 1.5rem;
+    width: auto;
+    top: auto;
+    bottom: 16vh;
+    transform: none;
+  }
+  /* HUD moves inline below the canvas rather than floating over it */
+  .hud {
+    position: absolute;
+    top: 56vh;
+    right: 1.5rem;
+    bottom: auto;
+  }
+  .concept-layout {
+    grid-template-columns: 1fr;
   }
   .stage-item {
     grid-template-columns: 2.5rem 1fr;
@@ -447,10 +654,16 @@ p {
   }
 }
 
-.footer {
-  padding: 3rem 2rem;
-  text-align: center;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--body);
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .scroll-cue {
+    animation: none;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }

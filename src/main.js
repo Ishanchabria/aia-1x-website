@@ -3,6 +3,11 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { createDrone, updateDynamicWires } from "./drone.js";
 import "./style.css";
 
@@ -78,7 +83,7 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.08));
 
 // KEY — dramatic overhead pool, neutral white (tinting it blue turns the
 // gunmetal fully blue and kills the neutral-metal read)
-const keyLight = new THREE.SpotLight(0xffffff, 6, 0, 0.38, 0.92, 0);
+const keyLight = new THREE.SpotLight(0xffffff, 3.8, 0, 0.4, 0.92, 0);
 keyLight.position.set(-90, 260, 110);
 keyLight.castShadow = true;
 keyLight.shadow.mapSize.set(2048, 2048);
@@ -91,7 +96,7 @@ scene.add(keyLight.target);
 
 // RIM — with a near-black body this IS the silhouette. Not optional.
 const rimLight = new THREE.DirectionalLight(0x7fa8ff, 2.2);
-rimLight.position.set(-40, 120, -230);
+rimLight.position.set(-55, 30, -240);
 scene.add(rimLight);
 
 const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -154,12 +159,31 @@ drone.traverse((obj) => {
 });
 scene.add(drone);
 
+// --- post-processing ---
+// Order matters. OutputPass MUST be last: once a composer is in play the
+// renderer's own tone mapping and colour-space conversion are bypassed, and
+// without it the whole scene renders washed out and wrongly gamma'd.
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+
+const bloom = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  0.35, // strength — only speculars and the emissive trim should cross
+  0.6, // radius
+  0.8 // threshold
+);
+composer.addPass(bloom);
+composer.addPass(new SMAAPass());
+composer.addPass(new OutputPass());
+
 function resize() {
   const w = window.innerWidth;
   const h = window.innerHeight;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
+  composer.setSize(w, h);
+  bloom.setSize(w, h);
 }
 window.addEventListener("resize", resize);
 
@@ -168,18 +192,28 @@ window.addEventListener("resize", resize);
 const spinners = parts.filter((p) => p.spin);
 const clock = new THREE.Clock();
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let canvasVisible = true;
 
 function render() {
-  const dt = clock.getDelta();
+  requestAnimationFrame(render);
+  if (!canvasVisible) return;
+
+  const dt = Math.min(clock.getDelta(), 0.1);
+
+  // ease the scene toward the scroll target rather than snapping to it
+  if (!reducedMotion && Math.abs(scrollTarget - scrollCurrent) > 0.0001) {
+    scrollCurrent += (scrollTarget - scrollCurrent) * Math.min(1, dt * 6);
+    updateScene(scrollCurrent);
+  }
+
   spinners.forEach((p) => {
     if (p.spinT) p.mesh.rotation.y += p.spin * p.spinT * dt;
   });
   // drifting reflections across the gunmetal — the strongest "real object" cue
   if (!reducedMotion) scene.environmentRotation.y += 0.02 * dt;
-  renderer.render(scene, camera);
-  requestAnimationFrame(render);
+
+  composer.render();
 }
-render();
 
 // --- Scroll-driven explode + camera orbit ---
 const captions = gsap.utils.toArray(".caption");
@@ -245,14 +279,61 @@ function updateScene(progress) {
 
 updateScene(0);
 
+// Scroll drives a *target*; the scene eases toward it every frame so the drone
+// carries weight instead of snapping. Under reduced motion it tracks directly.
+let scrollTarget = 0;
+let scrollCurrent = 0;
+
+const nav = document.getElementById("topnav");
+const railFill = document.getElementById("rail-fill");
+
 ScrollTrigger.create({
   trigger: "#scroll-scene",
   start: "top top",
   end: "bottom bottom",
   scrub: 0.3,
-  onUpdate: (self) => updateScene(self.progress),
+  onUpdate: (self) => {
+    scrollTarget = self.progress;
+    if (reducedMotion) {
+      scrollCurrent = scrollTarget;
+      updateScene(scrollCurrent);
+    }
+    railFill.style.height = `${self.progress * 100}%`;
+  },
 });
 
+// --- DOM chrome: nav backdrop, section reveals ---
+const onScroll = () => nav.classList.toggle("is-stuck", window.scrollY > 80);
+window.addEventListener("scroll", onScroll, { passive: true });
+onScroll();
+
+const revealObserver = new IntersectionObserver(
+  (entries) => {
+    entries.forEach((e) => {
+      if (e.isIntersecting) {
+        e.target.classList.add("is-visible");
+        revealObserver.unobserve(e.target);
+      }
+    });
+  },
+  { rootMargin: "0px 0px -12% 0px" }
+);
+document.querySelectorAll(".section .section-inner").forEach((el) => {
+  el.classList.add("reveal");
+  revealObserver.observe(el);
+});
+
+// Pause rendering entirely when the canvas is offscreen.
+new IntersectionObserver(
+  ([entry]) => {
+    canvasVisible = entry.isIntersecting;
+    if (canvasVisible) clock.getDelta(); // drop the accumulated gap
+  },
+  { threshold: 0 }
+).observe(canvas);
+
 if (import.meta.env.DEV) {
-  window.__debug = { scene, camera, renderer, drone, parts, updateScene, THREE };
+  window.__debug = { scene, camera, renderer, composer, drone, parts, updateScene, THREE };
 }
+
+render();

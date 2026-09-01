@@ -23,7 +23,7 @@ function roundedBox(w, h, d, radius = 0.25) {
 // the real wire colours, which are small enough to read as accurate detail and
 // give the eye one warm anchor on an otherwise cold object.
 const COLOR = {
-  frame: 0x131820,
+  frame: 0x0b0e14,
   accentGlow: 0x3d7dff,
   gunmetal: 0x8f99a8,
   shaft: 0x6e7783,
@@ -264,9 +264,10 @@ export function createDrone(maxAnisotropy = 1) {
     frame: new THREE.MeshPhysicalMaterial({
       color: COLOR.frame,
       metalness: 0.15,
-      roughness: 0.42,
-      clearcoat: 0.55,
-      clearcoatRoughness: 0.3,
+      roughness: 0.46,
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.4,
+      envMapIntensity: 0.28,
       roughnessMap: microNoise,
     }),
     accentTrim: new THREE.MeshStandardMaterial({

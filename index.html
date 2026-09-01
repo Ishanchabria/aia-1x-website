@@ -37,24 +37,40 @@
       </div>
     </aside>
 
-    <nav class="topnav">
+    <nav class="topnav" id="topnav">
       <span class="topnav-brand">AIA-1X</span>
-      <span class="topnav-sub">micro-quadcopter // build log</span>
+      <div class="topnav-links">
+        <a href="#concept">Concept</a>
+        <a href="#build-log">Build log</a>
+        <a href="#specs">Specs</a>
+        <a href="#roadmap">Roadmap</a>
+      </div>
+      <a class="topnav-action" href="https://github.com/Ishanchabria/aia-1x-website">Source</a>
     </nav>
+
+    <!-- progress rail: which of the 7 stages is active -->
+    <div class="rail" id="rail" aria-hidden="true">
+      <span class="rail-track"><span class="rail-fill" id="rail-fill"></span></span>
+    </div>
 
     <!-- Pinned 3D scroll-explode experience -->
     <section id="scroll-scene" class="scroll-scene">
       <div class="scene-pin">
+        <span class="watermark" aria-hidden="true">AIA-1X</span>
         <canvas id="drone-canvas"></canvas>
         <div class="scene-captions">
-          <div class="caption" data-stage="0">
+          <div class="caption caption-hero" data-stage="0">
             <span class="eyebrow">AIA-1X</span>
-            <h1>Built by hand. Coded from scratch.</h1>
+            <h1>Built by hand.<br />Coded from scratch.</h1>
             <p>
               A self-programmed ESP32 micro-quadcopter — every wire and every
               line of flight-control code done deliberately, one stage at a
               time.
             </p>
+            <div class="cta-row">
+              <a class="cta cta-solid" href="#build-log">See the build log</a>
+              <a class="cta cta-ghost" href="#specs">Full spec</a>
+            </div>
           </div>
           <div class="caption" data-stage="1">
             <span class="eyebrow">FRAME + MOTORS</span>
@@ -100,6 +116,7 @@
             <p>Mirrored CW/CCW pairs — front-left and rear-right spin one way, front-right and rear-left the other.</p>
           </div>
         </div>
+        <span class="scroll-cue" aria-hidden="true"></span>
       </div>
     </section>
 
