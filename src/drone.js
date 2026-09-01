@@ -287,9 +287,10 @@ export function createDrone(maxAnisotropy = 1) {
     propBlack: new THREE.MeshPhysicalMaterial({
       color: COLOR.propBlack,
       metalness: 0,
-      roughness: 0.16,
-      clearcoat: 1,
-      clearcoatRoughness: 0.12,
+      roughness: 0.52,
+      clearcoat: 0.35,
+      clearcoatRoughness: 0.38,
+      envMapIntensity: 0.3,
     }),
     pcbBlack: new THREE.MeshStandardMaterial({ color: COLOR.pcbBlack, metalness: 0, roughness: 0.7, roughnessMap: microNoise }),
     shield: new THREE.MeshStandardMaterial({ color: COLOR.shield, metalness: 0.95, roughness: 0.42, envMapIntensity: 0.6 }),
@@ -452,14 +453,19 @@ export function createDrone(maxAnisotropy = 1) {
     const spinSign = deg === 135 || deg === 315 ? 1 : -1;
 
     [0, Math.PI].forEach((rot) => {
+      // Outline must stay monotonic along the span — an earlier version doubled
+      // back on itself at the tip, which self-intersected, broke triangulation
+      // and left that region with garbage normals (it shaded bright even with
+      // every light off).
       const bladeShape = new THREE.Shape();
       bladeShape.moveTo(0, -2.5);
-      bladeShape.quadraticCurveTo(14, -4.5, 32.5, -1);
-      bladeShape.quadraticCurveTo(29, 0, 32.5, 1.2);
-      bladeShape.quadraticCurveTo(14, 4.5, 0, 2.5);
+      bladeShape.quadraticCurveTo(16, -4.6, 29.5, -1.7);
+      bladeShape.quadraticCurveTo(32.5, 0, 29.5, 1.7);
+      bladeShape.quadraticCurveTo(16, 4.6, 0, 2.5);
       bladeShape.closePath();
       const bladeGeo = new THREE.ExtrudeGeometry(bladeShape, { depth: 0.6, bevelEnabled: true, bevelSize: 0.15, bevelThickness: 0.15, bevelSegments: 2, curveSegments: 10 });
       bladeGeo.translate(3, 0, 0);
+      bladeGeo.computeVertexNormals();
       const blade = new THREE.Mesh(bladeGeo, mats.propBlack);
       blade.rotation.x = spinSign * 0.28; // pitch
       const bladePivot = new THREE.Group();

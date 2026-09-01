@@ -90,7 +90,7 @@ scene.add(keyLight);
 scene.add(keyLight.target);
 
 // RIM — with a near-black body this IS the silhouette. Not optional.
-const rimLight = new THREE.DirectionalLight(0x7fa8ff, 3.2);
+const rimLight = new THREE.DirectionalLight(0x7fa8ff, 2.2);
 rimLight.position.set(-40, 120, -230);
 scene.add(rimLight);
 
