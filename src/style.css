@@ -173,6 +173,56 @@ p {
   transition: height 0.15s linear;
 }
 
+/* ------------------------------ boot / loading --------------------------- */
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: var(--bg-deep);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 30vh;
+  transition: opacity 0.7s var(--ease), visibility 0.7s var(--ease);
+}
+
+.boot.is-done {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.boot-line {
+  width: min(220px, 40vw);
+  height: 1px;
+  background: var(--fg-faint);
+  position: relative;
+  overflow: hidden;
+}
+
+.boot-line::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  background: var(--accent);
+  animation: bootsweep 1.1s var(--ease) infinite;
+}
+
+@keyframes bootsweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+/* canvas fades up once the scene is ready, so no empty black frame */
+#drone-canvas {
+  opacity: 0;
+  transition: opacity 0.9s var(--ease);
+}
+
+.is-ready #drone-canvas {
+  opacity: 1;
+}
+
 /* --------------------------- pinned 3D scene ----------------------------- */
 .scroll-scene {
   position: relative;

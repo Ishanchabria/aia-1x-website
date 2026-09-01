@@ -435,7 +435,9 @@ export function createDrone(maxAnisotropy = 1) {
     wireColors.forEach((color, w) => {
       const from = new THREE.Vector3(tip.x, tip.y - 8, tip.z).add(new THREE.Vector3(-dir.x * 1.5 * (w ? 1 : -1), 0, -dir.z * 1.5 * (w ? 1 : -1)));
       const to = new THREE.Vector3(dir.x * (plateRadial + 4), 0.5, dir.z * (plateRadial + 4));
-      motor.add(wireMesh(from, to, color, 0.45, 2.5, seed++));
+      // built in drone-space, so it parents to `group` — adding it to `motor`
+      // would offset it by the motor position a second time
+      group.add(wireMesh(from, to, color, 0.45, 2.5, seed++));
       exitPoints.push(to.clone());
     });
     motorWireExits.push({ point: exitPoints[0], colors: wireColors });
@@ -473,6 +475,23 @@ export function createDrone(maxAnisotropy = 1) {
       bladePivot.rotation.y = rot;
       bladePivot.add(blade);
       propGroup.add(bladePivot);
+
+      // Fake motion blur: trailing ghosts of each blade, rotationally offset
+      // and fading out. Hidden until the props are actually spinning.
+      [0.16, 0.32, 0.5].forEach((lag, gi) => {
+        const ghostMat = mats.propBlack.clone();
+        ghostMat.transparent = true;
+        ghostMat.opacity = 0.28 - gi * 0.08;
+        ghostMat.depthWrite = false;
+        const ghost = new THREE.Mesh(bladeGeo, ghostMat);
+        ghost.rotation.x = spinSign * 0.28;
+        const ghostPivot = new THREE.Group();
+        ghostPivot.rotation.y = rot - spinSign * lag;
+        ghostPivot.add(ghost);
+        ghostPivot.visible = false;
+        ghostPivot.userData.isBlur = true;
+        propGroup.add(ghostPivot);
+      });
     });
 
     propGroup.position.set(tip.x, 27, tip.z);

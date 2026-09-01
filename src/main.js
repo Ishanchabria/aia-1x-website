@@ -40,9 +40,11 @@ const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerH
 camera.position.set(0, 55, 260);
 camera.lookAt(0, 25, 0);
 
+const isMobile = window.matchMedia("(max-width: 768px)").matches;
+
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -61,6 +63,19 @@ scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environmentIntensity = 0.32;
 scene.background = null;
 
+let readyFired = false;
+function sceneReady() {
+  if (readyFired) return;
+  readyFired = true;
+  document.documentElement.classList.add("is-ready");
+  const boot = document.getElementById("boot");
+  if (!boot) return;
+  boot.classList.add("is-done");
+  // don't leave the overlay's removal depending on a transition completing —
+  // if it never fires, the page would sit behind a black screen forever
+  setTimeout(() => boot.remove(), 900);
+}
+
 new RGBELoader().load(
   "/hdr/studio_small_09_1k.hdr",
   (hdri) => {
@@ -69,13 +84,17 @@ new RGBELoader().load(
     scene.environment = pmrem.fromEquirectangular(hdri).texture;
     prev?.dispose();
     hdri.dispose();
+    sceneReady();
   },
   undefined,
   () => {
     // keep the RoomEnvironment fallback already in place
     console.warn("[AIA-1X] studio HDRI failed to load — using RoomEnvironment fallback");
+    sceneReady();
   }
 );
+// never let a slow/blocked HDRI hold the page hostage
+setTimeout(sceneReady, 4000);
 
 // --- low-key studio lighting. The environment map does the fill work, so
 // ambient stays near zero; raising it is what flattens a studio look. ---
@@ -86,7 +105,7 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.08));
 const keyLight = new THREE.SpotLight(0xffffff, 3.8, 0, 0.4, 0.92, 0);
 keyLight.position.set(-90, 260, 110);
 keyLight.castShadow = true;
-keyLight.shadow.mapSize.set(2048, 2048);
+keyLight.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
 keyLight.shadow.camera.near = 120;
 keyLight.shadow.camera.far = 460;
 keyLight.shadow.bias = -0.0005;
@@ -192,7 +211,22 @@ window.addEventListener("resize", resize);
 const spinners = parts.filter((p) => p.spin);
 const clock = new THREE.Clock();
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const isTouch = window.matchMedia("(hover: none)").matches;
 let canvasVisible = true;
+
+// pointer parallax state, in -0.5..0.5 of the viewport
+const pointer = { x: 0, y: 0 };
+const parallax = { x: 0, y: 0 };
+if (!isTouch) {
+  window.addEventListener(
+    "pointermove",
+    (e) => {
+      pointer.x = e.clientX / window.innerWidth - 0.5;
+      pointer.y = e.clientY / window.innerHeight - 0.5;
+    },
+    { passive: true }
+  );
+}
 
 function render() {
   requestAnimationFrame(render);
@@ -208,9 +242,26 @@ function render() {
 
   spinners.forEach((p) => {
     if (p.spinT) p.mesh.rotation.y += p.spin * p.spinT * dt;
+    // blur ghosts only exist while the blade is actually moving
+    const blurring = p.spinT > 0.12 && !reducedMotion;
+    if (p.blurVisible !== blurring) {
+      p.blurVisible = blurring;
+      p.mesh.children.forEach((c) => {
+        if (c.userData.isBlur) c.visible = blurring;
+      });
+    }
   });
+
+  // cursor parallax — heavily damped, so the scene reads as a space
+  if (!reducedMotion && !isTouch) {
+    parallax.x += (pointer.x - parallax.x) * Math.min(1, dt * 2.5);
+    parallax.y += (pointer.y - parallax.y) * Math.min(1, dt * 2.5);
+    camera.position.x += parallax.x * 14;
+    camera.position.y += parallax.y * 9;
+    camera.lookAt(0, 25 + scrollCurrent * 15, 0);
+  }
   // drifting reflections across the gunmetal — the strongest "real object" cue
-  if (!reducedMotion) scene.environmentRotation.y += 0.02 * dt;
+  if (!reducedMotion && !isMobile) scene.environmentRotation.y += 0.02 * dt;
 
   composer.render();
 }
