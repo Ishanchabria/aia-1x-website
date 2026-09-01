@@ -37,6 +37,9 @@ function screenshotSink() {
   };
 }
 
-export default defineConfig({
+// GitHub Pages serves a project site from /<repo>/, but the dev server serves
+// from /. Conditioning on the command keeps `npm run dev` working unchanged.
+export default defineConfig(({ command }) => ({
+  base: command === "build" ? "/aia-1x-website/" : "/",
   plugins: [screenshotSink()],
-});
+}));

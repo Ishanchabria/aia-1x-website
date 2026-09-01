@@ -42,7 +42,14 @@ const fallback = document.getElementById("gl-fallback");
 
 function showFallback() {
   if (canvas) canvas.hidden = true;
-  if (fallback) fallback.hidden = false;
+  if (fallback) {
+    // set from BASE_URL rather than trusting the literal in the HTML: Vite only
+    // rewrites public paths it can resolve at build time, and this image is
+    // generated later, so the literal would ship unprefixed and 404 on Pages
+    const img = fallback.querySelector("img");
+    if (img) img.src = `${import.meta.env.BASE_URL}drone-fallback.webp`;
+    fallback.hidden = false;
+  }
   // the boot overlay must never strand the page behind a black screen
   document.documentElement.classList.add("is-ready");
   const boot = document.getElementById("boot");

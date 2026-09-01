@@ -2,9 +2,23 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/icons.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AIA-1X — Hand-Built Micro-Quadcopter</title>
+    <meta
+      name="description"
+      content="AIA-1X is a hand-built, self-programmed ESP32 micro-quadcopter. Every wire and every line of flight-control code done by hand, one stage at a time."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="AIA-1X — Hand-Built Micro-Quadcopter" />
+    <meta
+      property="og:description"
+      content="A hand-built, self-programmed ESP32 micro-quadcopter. Explore the exploded view, build log and full hardware spec."
+    />
+    <!-- social scrapers need an absolute URL; relative og:image is unreliable -->
+    <meta property="og:url" content="https://ishanchabria.github.io/aia-1x-website/" />
+    <meta property="og:image" content="https://ishanchabria.github.io/aia-1x-website/og-image.webp" />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -62,7 +76,10 @@
         <canvas id="drone-canvas" role="img"
           aria-label="Interactive 3D model of the AIA-1X micro-quadcopter, which separates into its component parts as the page scrolls."></canvas>
         <div class="gl-fallback" id="gl-fallback" hidden>
-          <img src="/drone-fallback.webp" alt="The assembled AIA-1X micro-quadcopter" />
+          <!-- src is set from BASE_URL by main.js only when the fallback is
+               actually shown; a literal here would 404 on every page load,
+               since hidden images are still fetched -->
+          <img alt="The assembled AIA-1X micro-quadcopter" />
           <p>The interactive 3D view needs WebGL, which isn’t available in this browser.</p>
         </div>
         <div class="scene-captions">

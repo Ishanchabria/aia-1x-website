@@ -91,7 +91,10 @@ export function initScene() {
   }
 
   new RGBELoader().load(
-    "/hdr/studio_small_09_1k.hdr",
+    // string literals in JS are not base-rewritten by Vite the way HTML
+    // attributes are, so this must be built from BASE_URL or it 404s on a
+    // GitHub Pages project URL
+    `${import.meta.env.BASE_URL}hdr/studio_small_09_1k.hdr`,
     (hdri) => {
       hdri.mapping = THREE.EquirectangularReflectionMapping;
       const prev = scene.environment;
