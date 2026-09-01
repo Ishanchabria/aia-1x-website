@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { createDrone, updateDynamicWires } from "./drone.js";
 import "./style.css";
 
@@ -8,6 +10,23 @@ gsap.registerPlugin(ScrollTrigger);
 
 const canvas = document.getElementById("drone-canvas");
 const scene = new THREE.Scene();
+
+// Radial gradient generated at runtime — used to fade the floor out at its
+// edges and to fake a soft contact shadow, so neither ships as an image.
+function radialFadeTexture(inner = 1, outer = 0) {
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const ctx = c.getContext("2d");
+  const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  g.addColorStop(0, `rgba(255,255,255,${inner})`);
+  g.addColorStop(0.55, `rgba(255,255,255,${inner * 0.55})`);
+  g.addColorStop(1, `rgba(255,255,255,${outer})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 256, 256);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.NoColorSpace;
+  return t;
+}
 
 // Scene is modeled in true mm — drone reads ~100mm across, so the camera
 // and lights sit tens/hundreds of units out rather than the 1-4 unit range
@@ -21,43 +40,112 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-// --- three-point lighting ---
-scene.add(new THREE.AmbientLight(0xfff4e8, 0.35));
+// --- environment map: metal is pure reflection, so this is what makes the
+// gunmetal read as metal at all. RoomEnvironment goes in immediately (zero
+// download) so no frame ever renders unlit; the studio HDRI upgrades it. ---
+const pmrem = new THREE.PMREMGenerator(renderer);
+pmrem.compileEquirectangularShader();
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+// Spec called for ~0.9, but studio_small_09 is a bright-softbox HDRI: at 0.9 its
+// reflection blew the clearcoat surfaces (frame, ESP32 shield) to pure white and
+// stole the "motors are the brightest thing" read. Lowered to keep the intent.
+scene.environmentIntensity = 0.32;
+scene.background = null;
 
-const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
-keyLight.position.set(150, 220, 120);
+new RGBELoader().load(
+  "/hdr/studio_small_09_1k.hdr",
+  (hdri) => {
+    hdri.mapping = THREE.EquirectangularReflectionMapping;
+    const prev = scene.environment;
+    scene.environment = pmrem.fromEquirectangular(hdri).texture;
+    prev?.dispose();
+    hdri.dispose();
+  },
+  undefined,
+  () => {
+    // keep the RoomEnvironment fallback already in place
+    console.warn("[AIA-1X] studio HDRI failed to load — using RoomEnvironment fallback");
+  }
+);
+
+// --- low-key studio lighting. The environment map does the fill work, so
+// ambient stays near zero; raising it is what flattens a studio look. ---
+scene.add(new THREE.AmbientLight(0xffffff, 0.08));
+
+// KEY — dramatic overhead pool, neutral white (tinting it blue turns the
+// gunmetal fully blue and kills the neutral-metal read)
+const keyLight = new THREE.SpotLight(0xffffff, 6, 0, 0.38, 0.92, 0);
+keyLight.position.set(-90, 260, 110);
 keyLight.castShadow = true;
-keyLight.shadow.mapSize.set(1024, 1024);
-keyLight.shadow.camera.left = -180;
-keyLight.shadow.camera.right = 180;
-keyLight.shadow.camera.top = 180;
-keyLight.shadow.camera.bottom = -180;
-keyLight.shadow.camera.near = 1;
-keyLight.shadow.camera.far = 800;
-keyLight.shadow.bias = -0.001;
+keyLight.shadow.mapSize.set(2048, 2048);
+keyLight.shadow.camera.near = 120;
+keyLight.shadow.camera.far = 460;
+keyLight.shadow.bias = -0.0005;
+keyLight.shadow.normalBias = 0.02;
 scene.add(keyLight);
+scene.add(keyLight.target);
 
-const fillLight = new THREE.DirectionalLight(0xdfe6ea, 0.45);
-fillLight.position.set(-180, 90, -80);
-scene.add(fillLight);
-
-const rimLight = new THREE.DirectionalLight(0xc9d6e0, 0.9);
-rimLight.position.set(-60, 150, -220);
+// RIM — with a near-black body this IS the silhouette. Not optional.
+const rimLight = new THREE.DirectionalLight(0x7fa8ff, 3.2);
+rimLight.position.set(-40, 120, -230);
 scene.add(rimLight);
 
-// soft neutral ground to catch contact shadows — sits outside the
-// rotating drone group so it always stays level
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(700, 700),
-  new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.45, metalness: 0.05 })
-);
+const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
+fillLight.position.set(170, 70, 120);
+scene.add(fillLight);
+
+// onboard electronics glow
+const accentLight = new THREE.PointLight(0x3d7dff, 1, 90, 2);
+accentLight.position.set(0, 6, 0);
+scene.add(accentLight);
+
+// --- floor: dark and glossy enough to catch a blurred environment reflection,
+// faded at the edges so it never shows a hard horizon ---
+const groundMat = new THREE.MeshStandardMaterial({
+  color: 0x0a0a0c,
+  metalness: 0.55,
+  roughness: 0.85,
+  transparent: true,
+  alphaMap: radialFadeTexture(1.0, 0.0),
+});
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), groundMat);
 ground.rotation.x = -Math.PI / 2;
 ground.position.y = -46;
 ground.receiveShadow = true;
 scene.add(ground);
 
-const { group: drone, parts, dynamicWires, stageCount } = createDrone();
+// soft contact shadow blob directly under the drone
+const contact = new THREE.Mesh(
+  new THREE.PlaneGeometry(240, 240),
+  new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: 0.55,
+    alphaMap: radialFadeTexture(1.0, 0.0),
+    depthWrite: false,
+  })
+);
+contact.rotation.x = -Math.PI / 2;
+contact.position.y = -45.6;
+scene.add(contact);
+
+// thin accent ring encircling the drone on the floor (lives in the 3D scene,
+// so it follows the COOL rule)
+const ring = new THREE.Mesh(
+  new THREE.RingGeometry(96, 97.5, 96),
+  new THREE.MeshBasicMaterial({ color: 0x3d7dff, transparent: true, opacity: 0.15, side: THREE.DoubleSide, depthWrite: false })
+);
+ring.rotation.x = -Math.PI / 2;
+ring.position.y = -45.4;
+scene.add(ring);
+
+const { group: drone, parts, dynamicWires, stageCount } = createDrone(
+  renderer.capabilities.getMaxAnisotropy()
+);
 drone.traverse((obj) => {
   if (obj.isMesh) {
     obj.castShadow = true;
@@ -79,12 +167,15 @@ window.addEventListener("resize", resize);
 // `spinT` is set by updateScene to how far along that part's explosion is.
 const spinners = parts.filter((p) => p.spin);
 const clock = new THREE.Clock();
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function render() {
   const dt = clock.getDelta();
   spinners.forEach((p) => {
     if (p.spinT) p.mesh.rotation.y += p.spin * p.spinT * dt;
   });
+  // drifting reflections across the gunmetal — the strongest "real object" cue
+  if (!reducedMotion) scene.environmentRotation.y += 0.02 * dt;
   renderer.render(scene, camera);
   requestAnimationFrame(render);
 }
@@ -161,3 +252,7 @@ ScrollTrigger.create({
   scrub: 0.3,
   onUpdate: (self) => updateScene(self.progress),
 });
+
+if (import.meta.env.DEV) {
+  window.__debug = { scene, camera, renderer, drone, parts, updateScene, THREE };
+}

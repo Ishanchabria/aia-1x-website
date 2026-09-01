@@ -1,4 +1,15 @@
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+
+// Real edges catch a highlight; perfectly sharp ones read as CG. Radius is kept
+// small (a fabrication-scale edge break) and clamped so it can't collapse a
+// thin part. Sub-millimetre repeated parts (header pins, MOSFET legs) stay as
+// plain boxes — rounding edges that never resolve on screen costs a lot of
+// triangles for nothing.
+function roundedBox(w, h, d, radius = 0.25) {
+  const r = Math.min(radius, Math.min(w, h, d) * 0.2);
+  return new RoundedBoxGeometry(w, h, d, 3, r);
+}
 
 // ---------------------------------------------------------------------------
 // Units: 1 Three.js unit = 1mm. Drone reads at true ~100mm scale.
@@ -8,33 +19,37 @@ import * as THREE from "three";
 // `dynamicWires` are rebuilt every frame in main.js since their endpoints move.
 // ---------------------------------------------------------------------------
 
+// COOL palette — canvas only. Nothing warm renders inside the 3D scene except
+// the real wire colours, which are small enough to read as accurate detail and
+// give the eye one warm anchor on an otherwise cold object.
 const COLOR = {
-  frame: 0xf3efe6,
-  chrome: 0xd7dadc,
-  steel: 0xe7e9eb,
-  propBlack: 0x0d0d0d,
-  pcbBlack: 0x18181a,
-  shield: 0xb9bcbe,
-  usb: 0xc7c9cb,
-  button: 0x1c1c1c,
-  gold: 0xc9a03a,
-  pcbBlue: 0x1b3f9e,
-  chip: 0x0c0c0c,
-  amber: 0xd9832a,
-  perfboard: 0xc9a56a,
-  copper: 0xb5651d,
-  mosfetBody: 0x151515,
-  mosfetTab: 0xc9cdd0,
-  leg: 0xb8b8b8,
-  resistorBody: 0xdccb9e,
-  foil: 0xc9cccf,
-  jst: 0xf0ede6,
-  zipTie: 0x101010,
+  frame: 0x131820,
+  accentGlow: 0x3d7dff,
+  gunmetal: 0x8f99a8,
+  shaft: 0x6e7783,
+  propBlack: 0x0a0c10,
+  pcbBlack: 0x0f141c,
+  shield: 0x9aa3ad,
+  usb: 0x9aa3ad,
+  button: 0x11151c,
+  brass: 0xa8925e,
+  pcbBlue: 0x14315e,
+  chip: 0x090b0f,
+  amber: 0xb07a3c,
+  veroboard: 0x2a2c30,
+  copper: 0x8a6a4a,
+  mosfetBody: 0x101318,
+  mosfetTab: 0x9aa3ad,
+  leg: 0x8d95a0,
+  resistorBody: 0x585c62,
+  foil: 0x4a505a,
+  jst: 0x9aa3ad,
+  zipTie: 0x0b0d11,
   wireRed: 0xcc2b2b,
   wireBlack: 0x161616,
   wireYellow: 0xdcb92e,
   wireBlue: 0x2255aa,
-  wireWhite: 0xe7e2d6,
+  wireWhite: 0xd8dde4,
 };
 
 // ---- small texture helper: draws a top-face detail (silkscreen/label/grid) ----
@@ -51,7 +66,7 @@ function canvasTexture(draw, w = 256, h = 256) {
 
 function esp32Texture() {
   return canvasTexture((ctx, w, h) => {
-    ctx.fillStyle = "#18181a";
+    ctx.fillStyle = "#0f141c";
     ctx.fillRect(0, 0, w, h);
     ctx.strokeStyle = "rgba(255,255,255,0.55)";
     ctx.lineWidth = 1;
@@ -70,7 +85,7 @@ function esp32Texture() {
 
 function mpuTexture() {
   return canvasTexture((ctx, w, h) => {
-    ctx.fillStyle = "#1b3f9e";
+    ctx.fillStyle = "#14315e";
     ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = "rgba(255,255,255,0.85)";
     ctx.font = "bold 22px sans-serif";
@@ -94,11 +109,29 @@ function mpuTexture() {
   }, 200, 150);
 }
 
+// Low-amplitude surface variation. Breaks up the uniform "one plastic in
+// different colours" look far more cheaply than added geometry would.
+function noiseRoughnessTexture() {
+  const tex = canvasTexture((ctx, w, h) => {
+    const img = ctx.createImageData(w, h);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = 150 + Math.random() * 60;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+      img.data[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+  }, 128, 128);
+  tex.colorSpace = THREE.NoColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(4, 4);
+  return tex;
+}
+
 function perfboardTopTexture() {
   return canvasTexture((ctx, w, h) => {
-    ctx.fillStyle = "#c9a56a";
+    ctx.fillStyle = "#2a2c30";
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = "rgba(60,40,15,0.55)";
+    ctx.fillStyle = "rgba(8,10,14,0.75)";
     const step = 12;
     for (let x = step / 2; x < w; x += step) {
       for (let y = step / 2; y < h; y += step) {
@@ -112,9 +145,9 @@ function perfboardTopTexture() {
 
 function perfboardBottomTexture() {
   return canvasTexture((ctx, w, h) => {
-    ctx.fillStyle = "#7a4318";
+    ctx.fillStyle = "#1b1d21";
     ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = "rgba(200,140,70,0.8)";
+    ctx.strokeStyle = "rgba(138,106,74,0.85)";
     ctx.lineWidth = 3;
     for (let y = 8; y < h; y += 14) {
       ctx.beginPath();
@@ -127,17 +160,17 @@ function perfboardBottomTexture() {
 
 function batteryLabelTexture() {
   return canvasTexture((ctx, w, h) => {
-    ctx.fillStyle = "#c9cccf";
+    ctx.fillStyle = "#8d95a0";
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = "#12142a";
+    ctx.fillStyle = "#0b0f18";
     ctx.fillRect(w * 0.08, h * 0.12, w * 0.84, h * 0.76);
-    ctx.fillStyle = "#e8e2d6";
+    ctx.fillStyle = "#dfe6ef";
     ctx.font = "bold 26px sans-serif";
     ctx.fillText("1S LiPo", w * 0.18, h * 0.42);
     ctx.font = "13px monospace";
-    ctx.fillStyle = "rgba(232,226,214,0.8)";
+    ctx.fillStyle = "rgba(223,230,239,0.75)";
     ctx.fillText("3.7V  400mAh", w * 0.18, h * 0.62);
-    ctx.strokeStyle = "#c25640";
+    ctx.strokeStyle = "#3d7dff";
     ctx.lineWidth = 4;
     ctx.strokeRect(w * 0.08, h * 0.12, w * 0.84, h * 0.76);
   }, 256, 192);
@@ -197,61 +230,91 @@ function buildTubeGeometry(from, to, radius, sagAmount, sagSeed = 0) {
   return new THREE.TubeGeometry(curve, 16, radius, 6, false);
 }
 
+// Silicone insulation: soft sheen, keeps its real colour. These are the only
+// warm notes allowed inside the canvas.
+function wireMaterial(color) {
+  return new THREE.MeshPhysicalMaterial({ color, metalness: 0, roughness: 0.55, clearcoat: 0.4 });
+}
+
 function wireMesh(from, to, color, radius = 0.5, sag = 3, seed = 0) {
-  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.65 });
-  const mesh = new THREE.Mesh(buildTubeGeometry(from, to, radius, sag, seed), mat);
+  const mesh = new THREE.Mesh(buildTubeGeometry(from, to, radius, sag, seed), wireMaterial(color));
   return mesh;
 }
 
 function makeDynamicWire(color, radius = 0.5, sag = 4) {
-  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.65 });
+  const mat = wireMaterial(color);
   const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(), new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, -2, 0)]), 16, radius, 6, false);
   return new THREE.Mesh(geo, mat);
 }
 
 // ---------------------------------------------------------------------------
-export function createDrone() {
+export function createDrone(maxAnisotropy = 1) {
   const group = new THREE.Group();
   const parts = [];
   const dynamicWires = [];
+  const allTextures = [];
   let seed = 0;
+  const track = (tex) => (allTextures.push(tex), (tex.anisotropy = maxAnisotropy), tex);
+
+  const microNoise = track(noiseRoughnessTexture());
 
   const mats = {
+    // anodised / soft-touch dark blue-charcoal — near-black in shadow, cool blue
+    // in the highlight. Clearcoat is what makes it read as a finished surface.
     frame: new THREE.MeshPhysicalMaterial({
       color: COLOR.frame,
-      roughness: 0.5,
-      metalness: 0,
-      transmission: 0.12,
-      thickness: 2,
-      ior: 1.4,
+      metalness: 0.15,
+      roughness: 0.42,
+      clearcoat: 0.55,
+      clearcoatRoughness: 0.3,
+      roughnessMap: microNoise,
     }),
-    chrome: new THREE.MeshStandardMaterial({ color: COLOR.chrome, roughness: 0.25, metalness: 0.9 }),
-    steel: new THREE.MeshStandardMaterial({ color: COLOR.steel, roughness: 0.2, metalness: 0.9 }),
-    propBlack: new THREE.MeshStandardMaterial({ color: COLOR.propBlack, roughness: 0.2, metalness: 0.05 }),
-    pcbBlack: new THREE.MeshStandardMaterial({ color: COLOR.pcbBlack, roughness: 0.7, metalness: 0.05 }),
-    shield: new THREE.MeshStandardMaterial({ color: COLOR.shield, roughness: 0.4, metalness: 0.8 }),
-    usb: new THREE.MeshStandardMaterial({ color: COLOR.usb, roughness: 0.35, metalness: 0.7 }),
-    button: new THREE.MeshStandardMaterial({ color: COLOR.button, roughness: 0.5, metalness: 0 }),
-    gold: new THREE.MeshStandardMaterial({ color: COLOR.gold, roughness: 0.3, metalness: 0.8 }),
-    pcbBlue: new THREE.MeshStandardMaterial({ color: COLOR.pcbBlue, roughness: 0.45, metalness: 0.05 }),
-    chip: new THREE.MeshStandardMaterial({ color: COLOR.chip, roughness: 0.6, metalness: 0.05 }),
-    amberGlass: new THREE.MeshPhysicalMaterial({ color: COLOR.amber, roughness: 0.15, metalness: 0, transmission: 0.55, ior: 1.5, thickness: 1.2 }),
-    perfboard: new THREE.MeshStandardMaterial({ color: COLOR.perfboard, roughness: 0.55, metalness: 0 }),
-    copper: new THREE.MeshStandardMaterial({ color: COLOR.copper, roughness: 0.35, metalness: 0.85 }),
-    mosfetBody: new THREE.MeshStandardMaterial({ color: COLOR.mosfetBody, roughness: 0.55, metalness: 0 }),
-    mosfetTab: new THREE.MeshStandardMaterial({ color: COLOR.mosfetTab, roughness: 0.3, metalness: 0.85 }),
-    leg: new THREE.MeshStandardMaterial({ color: COLOR.leg, roughness: 0.35, metalness: 0.7 }),
-    resistorBody: new THREE.MeshStandardMaterial({ color: COLOR.resistorBody, roughness: 0.5, metalness: 0 }),
-    foil: new THREE.MeshStandardMaterial({ color: COLOR.foil, roughness: 0.35, metalness: 0.6 }),
-    jst: new THREE.MeshStandardMaterial({ color: COLOR.jst, roughness: 0.5, metalness: 0 }),
-    zipTie: new THREE.MeshStandardMaterial({ color: COLOR.zipTie, roughness: 0.6, metalness: 0 }),
+    accentTrim: new THREE.MeshStandardMaterial({
+      color: 0x0a1020,
+      emissive: COLOR.accentGlow,
+      emissiveIntensity: 1.4,
+      roughness: 0.4,
+      metalness: 0,
+    }),
+    gunmetal: new THREE.MeshStandardMaterial({
+      color: COLOR.gunmetal,
+      metalness: 1,
+      roughness: 0.3,
+      envMapIntensity: 1.15,
+    }),
+    shaft: new THREE.MeshStandardMaterial({ color: COLOR.shaft, metalness: 1, roughness: 0.4 }),
+    // glossy near-black: the highlight sweeping the blade twist is what sells it
+    propBlack: new THREE.MeshPhysicalMaterial({
+      color: COLOR.propBlack,
+      metalness: 0,
+      roughness: 0.16,
+      clearcoat: 1,
+      clearcoatRoughness: 0.12,
+    }),
+    pcbBlack: new THREE.MeshStandardMaterial({ color: COLOR.pcbBlack, metalness: 0, roughness: 0.7, roughnessMap: microNoise }),
+    shield: new THREE.MeshStandardMaterial({ color: COLOR.shield, metalness: 0.95, roughness: 0.42, envMapIntensity: 0.6 }),
+    usb: new THREE.MeshStandardMaterial({ color: COLOR.usb, metalness: 0.95, roughness: 0.32, envMapIntensity: 0.5 }),
+    button: new THREE.MeshStandardMaterial({ color: COLOR.button, metalness: 0, roughness: 0.6 }),
+    brass: new THREE.MeshStandardMaterial({ color: COLOR.brass, metalness: 1, roughness: 0.3 }),
+    pcbBlue: new THREE.MeshStandardMaterial({ color: COLOR.pcbBlue, metalness: 0, roughness: 0.48, roughnessMap: microNoise }),
+    chip: new THREE.MeshStandardMaterial({ color: COLOR.chip, metalness: 0, roughness: 0.62 }),
+    amberGlass: new THREE.MeshPhysicalMaterial({ color: COLOR.amber, roughness: 0.18, metalness: 0, transmission: 0.5, ior: 1.5, thickness: 1.2 }),
+    veroboard: new THREE.MeshStandardMaterial({ color: COLOR.veroboard, metalness: 0, roughness: 0.78, roughnessMap: microNoise }),
+    copper: new THREE.MeshStandardMaterial({ color: COLOR.copper, metalness: 0.9, roughness: 0.45 }),
+    mosfetBody: new THREE.MeshStandardMaterial({ color: COLOR.mosfetBody, metalness: 0, roughness: 0.6 }),
+    mosfetTab: new THREE.MeshStandardMaterial({ color: COLOR.mosfetTab, metalness: 0.95, roughness: 0.42, envMapIntensity: 0.6 }),
+    leg: new THREE.MeshStandardMaterial({ color: COLOR.leg, metalness: 0.9, roughness: 0.38 }),
+    resistorBody: new THREE.MeshStandardMaterial({ color: COLOR.resistorBody, metalness: 0, roughness: 0.62 }),
+    foil: new THREE.MeshStandardMaterial({ color: COLOR.foil, metalness: 0.7, roughness: 0.45 }),
+    jst: new THREE.MeshStandardMaterial({ color: COLOR.jst, metalness: 0.2, roughness: 0.55 }),
+    zipTie: new THREE.MeshStandardMaterial({ color: COLOR.zipTie, metalness: 0, roughness: 0.65 }),
   };
 
-  const espTopMat = new THREE.MeshStandardMaterial({ map: esp32Texture(), roughness: 0.65 });
-  const mpuTopMat = new THREE.MeshStandardMaterial({ map: mpuTexture(), roughness: 0.45 });
-  const perfTopMat = new THREE.MeshStandardMaterial({ map: perfboardTopTexture(), roughness: 0.55 });
-  const perfBottomMat = new THREE.MeshStandardMaterial({ map: perfboardBottomTexture(), roughness: 0.4, metalness: 0.3 });
-  const battLabelMat = new THREE.MeshStandardMaterial({ map: batteryLabelTexture(), roughness: 0.4, metalness: 0.3 });
+  const espTopMat = new THREE.MeshStandardMaterial({ map: track(esp32Texture()), roughness: 0.65 });
+  const mpuTopMat = new THREE.MeshStandardMaterial({ map: track(mpuTexture()), roughness: 0.45 });
+  const perfTopMat = new THREE.MeshStandardMaterial({ map: track(perfboardTopTexture()), roughness: 0.55 });
+  const perfBottomMat = new THREE.MeshStandardMaterial({ map: track(perfboardBottomTexture()), roughness: 0.4, metalness: 0.3 });
+  const battLabelMat = new THREE.MeshStandardMaterial({ map: track(batteryLabelTexture()), roughness: 0.4, metalness: 0.3 });
 
   // ============================= FRAME (anchor) =============================
   const frameGroup = new THREE.Group();
@@ -289,6 +352,18 @@ export function createDrone() {
     const armMesh = new THREE.Mesh(armGeo, mats.frame);
     const armPivot = new THREE.Group();
     armPivot.add(armMesh);
+
+    // single inset accent channel per arm — restrained, not a light show
+    const channel = new THREE.Mesh(roundedBox(armLength - 6, 0.45, 0.8, 0.12), mats.accentTrim);
+    channel.position.set(armLength / 2, 2.1, 0);
+    const chPos = channel.geometry.attributes.position;
+    for (let i = 0; i < chPos.count; i++) {
+      const t = THREE.MathUtils.clamp((chPos.getX(i) + (armLength - 6) / 2 + 3) / armLength, 0, 1);
+      chPos.setY(i, chPos.getY(i) + t * t * 3);
+    }
+    chPos.needsUpdate = true;
+    channel.geometry.computeVertexNormals();
+    armPivot.add(channel);
     armPivot.position.set(dir.x * armRoot, 1, dir.z * armRoot);
     armPivot.rotation.y = -rad;
     frameGroup.add(armPivot);
@@ -321,19 +396,27 @@ export function createDrone() {
   const motorWireExits = [];
   motorTips.forEach(({ tip, dir }, i) => {
     const motor = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(4.25, 4.25, 20, 24), mats.chrome);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(4.25, 4.25, 20, 32), mats.gunmetal);
     body.position.y = 10;
     motor.add(body);
 
+    // chamfered rims — a flat disc cap edge is one of the loudest CG tells
+    [0.35, 19.65].forEach((y) => {
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(4.08, 0.35, 8, 32), mats.gunmetal);
+      rim.rotation.x = Math.PI / 2;
+      rim.position.y = y;
+      motor.add(rim);
+    });
+
     // faint lengthwise seam line down the can
     const seam = new THREE.Mesh(
-      new THREE.BoxGeometry(0.35, 19, 0.35),
+      roundedBox(0.35, 19, 0.35, 0.06),
       new THREE.MeshStandardMaterial({ color: 0x8b8e90, roughness: 0.45, metalness: 0.85 })
     );
     seam.position.set(4.2, 10, 0);
     motor.add(seam);
 
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 5, 8), mats.steel);
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 5, 8), mats.shaft);
     shaft.position.y = 22.5;
     motor.add(shaft);
 
@@ -404,11 +487,11 @@ export function createDrone() {
   mpuTop.rotation.x = -Math.PI / 2;
   mpuTop.position.y = 1.02;
   mpuGroup.add(mpuTop);
-  const mpuChip = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 4), mats.chip);
+  const mpuChip = new THREE.Mesh(roundedBox(4, 1, 4, 0.1), mats.chip);
   mpuChip.position.set(0, 1.5, 0);
   mpuGroup.add(mpuChip);
   [-6, 6].forEach((z) => {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.35, 8, 16), mats.gold);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.35, 8, 16), mats.brass);
     ring.rotation.x = Math.PI / 2;
     ring.position.set(7, 1.05, z);
     mpuGroup.add(ring);
@@ -416,7 +499,7 @@ export function createDrone() {
   const mpuCap = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 2, 10), mats.amberGlass);
   mpuCap.position.set(-6, 2, 5);
   mpuGroup.add(mpuCap);
-  const mpuPins = pinRow(8, 1.7, 4, mats.gold);
+  const mpuPins = pinRow(8, 1.7, 4, mats.brass);
   mpuPins.position.set(-2, 1, -7.5);
   mpuGroup.add(mpuPins);
 
@@ -427,7 +510,7 @@ export function createDrone() {
 
   // ============================= POWER BOARD =============================
   const pbGroup = new THREE.Group();
-  const pbBoard = new THREE.Mesh(roundedPlate(30, 25, 1.5, 1.5), mats.perfboard);
+  const pbBoard = new THREE.Mesh(roundedPlate(30, 25, 1.5, 1.5), mats.veroboard);
   pbGroup.add(pbBoard);
   // drilled-hole grid on top, copper strip traces underneath
   const pbTop = new THREE.Mesh(new THREE.PlaneGeometry(29, 24), perfTopMat);
@@ -441,10 +524,10 @@ export function createDrone() {
 
   for (let m = 0; m < 4; m++) {
     const mosfet = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(4.5, 4.2, 1.6), mats.mosfetBody);
+    const body = new THREE.Mesh(roundedBox(4.5, 4.2, 1.6, 0.2), mats.mosfetBody);
     body.position.y = 2.1;
     mosfet.add(body);
-    const tab = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2, 0.4), mats.mosfetTab);
+    const tab = new THREE.Mesh(roundedBox(4.2, 2, 0.4, 0.08), mats.mosfetTab);
     tab.position.set(0, 4.3, -1);
     mosfet.add(tab);
     const hole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.5, 10), mats.mosfetBody);
@@ -510,22 +593,22 @@ export function createDrone() {
   espTop.position.y = 1.62;
   espGroup.add(espTop);
 
-  const shield = new THREE.Mesh(new THREE.BoxGeometry(18, 3, 25), mats.shield);
+  const shield = new THREE.Mesh(roundedBox(18, 3, 25, 0.3), mats.shield);
   shield.position.set(0, 1.6 + 1.5, 10);
   espGroup.add(shield);
 
-  const usb = new THREE.Mesh(new THREE.BoxGeometry(8, 5, 5), mats.usb);
+  const usb = new THREE.Mesh(roundedBox(8, 5, 5, 0.3), mats.usb);
   usb.position.set(0, 1.6 + 2.5, -25 - 1);
   espGroup.add(usb);
 
   [-6, 6].forEach((x) => {
-    const btn = new THREE.Mesh(new THREE.BoxGeometry(4, 2, 4), mats.button);
+    const btn = new THREE.Mesh(roundedBox(4, 2, 4, 0.18), mats.button);
     btn.position.set(x, 1.6 + 1, -18);
     espGroup.add(btn);
   });
 
   [[-5, -22], [7, -20], [10, -16]].forEach(([x, z], i) => {
-    const smd = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 2, 10), i === 2 ? mats.amberGlass : mats.steel);
+    const smd = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 2, 10), i === 2 ? mats.amberGlass : mats.shaft);
     smd.position.set(x, 1.6 + 1, z);
     espGroup.add(smd);
   });
@@ -536,7 +619,7 @@ export function createDrone() {
   });
 
   [-13, 13].forEach((x) => {
-    const pins = pinRow(15, 3.2, 6, mats.gold);
+    const pins = pinRow(15, 3.2, 6, mats.brass);
     pins.rotation.y = Math.PI / 2;
     pins.position.set(x, 0, 0);
     espGroup.add(pins);
@@ -555,7 +638,7 @@ export function createDrone() {
   battTop.rotation.x = -Math.PI / 2;
   battTop.position.y = 5.05;
   battGroup.add(battTop);
-  const plug = new THREE.Mesh(new THREE.BoxGeometry(7, 5, 4), mats.jst);
+  const plug = new THREE.Mesh(roundedBox(7, 5, 4, 0.25), mats.jst);
   plug.position.set(0, 2.5, -18);
   battGroup.add(plug);
   [-1, 1].forEach((x) => {
