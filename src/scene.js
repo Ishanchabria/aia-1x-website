@@ -21,18 +21,29 @@ export function initScene() {
 
   // Radial gradient generated at runtime — used to fade the floor out at its
   // edges and to fake a soft contact shadow, so neither ships as an image.
+  // The floor plane is 900 units across. At the old 256px this was ~3.5 world
+  // units per texel with anisotropy 1, which is what made the light pool look
+  // pixelated. Resolution and anisotropy both matter here.
+  const FADE_TEX_SIZE = 2048;
   function radialFadeTexture(inner = 1, outer = 0) {
     const c = document.createElement("canvas");
-    c.width = c.height = 256;
+    c.width = c.height = FADE_TEX_SIZE;
     const ctx = c.getContext("2d");
-    const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+    const half = FADE_TEX_SIZE / 2;
+    const g = ctx.createRadialGradient(half, half, 0, half, half, half);
     g.addColorStop(0, `rgba(255,255,255,${inner})`);
     g.addColorStop(0.55, `rgba(255,255,255,${inner * 0.55})`);
     g.addColorStop(1, `rgba(255,255,255,${outer})`);
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 256, 256);
+    ctx.fillRect(0, 0, FADE_TEX_SIZE, FADE_TEX_SIZE);
     const t = new THREE.CanvasTexture(c);
+    // alphaMap is data, not colour — tagging it sRGB would gamma-shift the fade
     t.colorSpace = THREE.NoColorSpace;
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.magFilter = THREE.LinearFilter;
+    t.generateMipmaps = true;
+    t.needsUpdate = true;
     return t;
   }
 
@@ -163,8 +174,17 @@ export function initScene() {
   // thin accent ring encircling the drone on the floor (lives in the 3D scene,
   // so it follows the COOL rule)
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(96, 97.5, 96),
-    new THREE.MeshBasicMaterial({ color: 0x3d7dff, transparent: true, opacity: 0.15, side: THREE.DoubleSide, depthWrite: false })
+    new THREE.RingGeometry(96, 97.5, 256),
+    new THREE.MeshBasicMaterial({
+      color: 0x3d7dff,
+      transparent: true,
+      opacity: 0.15,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    })
   );
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = -45.4;
