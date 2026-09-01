@@ -217,6 +217,15 @@ let canvasVisible = true;
 // pointer parallax state, in -0.5..0.5 of the viewport
 const pointer = { x: 0, y: 0 };
 const parallax = { x: 0, y: 0 };
+// The scroll orbit writes here; the camera's real position is this plus the
+// clamped parallax offset, resolved fresh every frame.
+const baseCameraPos = new THREE.Vector3(0, 55, 260);
+const lookTarget = new THREE.Vector3(0, 25, 0);
+// ~2 degrees of drift at the scene's working camera distance
+const PARALLAX_MAX_X = 9;
+const PARALLAX_MAX_Y = 6;
+const PARALLAX_EASE = 0.06;
+const parallaxEnabled = !reducedMotion && !isTouch;
 if (!isTouch) {
   window.addEventListener(
     "pointermove",
@@ -252,14 +261,20 @@ function render() {
     }
   });
 
-  // cursor parallax — heavily damped, so the scene reads as a space
-  if (!reducedMotion && !isTouch) {
-    parallax.x += (pointer.x - parallax.x) * Math.min(1, dt * 2.5);
-    parallax.y += (pointer.y - parallax.y) * Math.min(1, dt * 2.5);
-    camera.position.x += parallax.x * 14;
-    camera.position.y += parallax.y * 9;
-    camera.lookAt(0, 25 + scrollCurrent * 15, 0);
+  // Cursor parallax. The scroll system owns the camera's base position; this is
+  // only ever an offset applied on top of it, recomputed absolutely each frame.
+  // It must never accumulate onto camera.position — doing so compounds every
+  // frame while the page is still and walks the camera out of the scene.
+  if (parallaxEnabled) {
+    parallax.x += (pointer.x - parallax.x) * PARALLAX_EASE;
+    parallax.y += (pointer.y - parallax.y) * PARALLAX_EASE;
   }
+  camera.position.set(
+    baseCameraPos.x + THREE.MathUtils.clamp(parallax.x * 2 * PARALLAX_MAX_X, -PARALLAX_MAX_X, PARALLAX_MAX_X),
+    baseCameraPos.y + THREE.MathUtils.clamp(parallax.y * 2 * PARALLAX_MAX_Y, -PARALLAX_MAX_Y, PARALLAX_MAX_Y),
+    baseCameraPos.z
+  );
+  camera.lookAt(lookTarget);
   // drifting reflections across the gunmetal — the strongest "real object" cue
   if (!reducedMotion && !isMobile) scene.environmentRotation.y += 0.02 * dt;
 
@@ -295,12 +310,15 @@ function updateScene(progress) {
 
   drone.rotation.y = progress * Math.PI * 1.1;
 
+  // writes the BASE camera position only — parallax is layered on in render()
   const camAngle = progress * Math.PI * 0.7;
   const radius = 260 + progress * 220;
-  camera.position.x = Math.sin(camAngle) * radius;
-  camera.position.z = Math.cos(camAngle) * radius;
-  camera.position.y = 55 + progress * 140;
-  camera.lookAt(0, 25 + progress * 15, 0);
+  baseCameraPos.set(
+    Math.sin(camAngle) * radius,
+    55 + progress * 140,
+    Math.cos(camAngle) * radius
+  );
+  lookTarget.set(0, 25 + progress * 15, 0);
 
   // Captions: fade in/out within each stage window
   captions.forEach((el) => {

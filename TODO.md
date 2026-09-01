@@ -7,12 +7,8 @@ Written 2026-09-02, after the 3D realism + visual design pass.
 
 ## 1. Actual bugs (misbehave for a real visitor)
 
-- [ ] **Cursor parallax drifts the camera away permanently.** In `src/main.js`,
-      `camera.position.x += parallax.x * 14` uses `+=` on an absolute position.
-      `updateScene()` only rewrites the camera while the scroll value is
-      *changing*, so holding the pointer off-centre without scrolling compounds
-      the offset every frame and the camera flies off. Must be `base + offset`,
-      not an accumulation. **Highest priority — only item that actively breaks.**
+- [x] ~~Cursor parallax camera drift~~ — FIXED. Parallax is now a clamped
+      offset off a stored base position, resolved absolutely each frame.
 - [ ] **No WebGL fallback.** If WebGL is unavailable or the context is lost, the
       visitor gets an empty page. No detection, no message, no static image.
 - [ ] Dead code: `allTextures` in `drone.js` is collected and never returned or
@@ -28,8 +24,6 @@ Written 2026-09-02, after the 3D realism + visual design pass.
       there is no highlight sweep for the glossy prop material to catch. Then
       prop roughness went 0.16 -> 0.52 to kill a white-blade blowout, weakening
       it further. Correct fix is a genuinely twisted blade, then restore gloss.
-- [ ] **Drone not offset to the right two-thirds** (spec 2F). Camera is centred,
-      so the hero headline sits on top of the drone and the watermark.
 - [ ] **No disposal/teardown.** Only the HDRI disposes.
 - [ ] Not every `BoxGeometry` became `RoundedBoxGeometry` — header pins and
       MOSFET legs left sharp on purpose (sub-mm edges never resolve on screen,
