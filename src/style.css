@@ -18,6 +18,11 @@
   --fg: #f4f2ee;
   --fg-muted: rgba(244, 242, 238, 0.72);
   --fg-faint: rgba(244, 242, 238, 0.18);
+  /* The quietest a real label is allowed to get. --fg-faint is for borders,
+     dividers and the oversized watermark — anything decorative, where nobody
+     has to read it. Text that carries meaning uses this instead: at 18% the
+     HUD labels measured 1.57:1, well under the 4.5:1 AA needs. */
+  --fg-label: rgba(244, 242, 238, 0.5);
 
   --accent: #f7f9fb;
   --accent-dim: #cdd6df;
@@ -681,7 +686,13 @@ html[data-gl="fallback"] #drone-canvas {
   flex-direction: column;
   gap: 0.55rem;
   padding: 1rem 1.15rem;
-  background: rgba(8, 8, 10, 0.6);
+  /* 0.82 rather than 0.6. The panel floats over the canvas, so at 0.6 a lit
+     part of the drone passing behind it dragged the labels down to 3.89:1 —
+     the readout got harder to read exactly when the scene got brighter.
+     Firming the panel buys more contrast than brightening the labels would,
+     and costs less: it keeps the labels quiet against the values, which is
+     the whole point of the hierarchy. */
+  background: rgba(8, 8, 10, 0.82);
   backdrop-filter: blur(12px);
   border-left: 1px solid var(--fg-faint);
   font-family: var(--font-mono);
@@ -696,7 +707,7 @@ html[data-gl="fallback"] #drone-canvas {
   font-size: 0.58rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--fg-faint);
+  color: var(--fg-label);
   border-bottom: 1px solid var(--fg-faint);
   padding-bottom: 0.5rem;
 }
@@ -709,7 +720,7 @@ html[data-gl="fallback"] #drone-canvas {
 }
 
 .hud-label {
-  color: var(--fg-faint);
+  color: var(--fg-label);
   letter-spacing: 0.14em;
 }
 
