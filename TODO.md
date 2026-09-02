@@ -1,113 +1,131 @@
 # AIA-1X site — outstanding work
 
-Everything known to be broken, unfinished, unverified, or deliberately skipped.
-Written 2026-09-02, after the 3D realism + visual design pass.
+Live: https://ishanchabria.github.io/aia-1x-website/
+
+Rewritten 2026-09-02 after the nine-item work order. Everything below is either
+still broken, unfinished, unverified, or a decision waiting on you.
 
 ---
 
-## 1. Actual bugs (misbehave for a real visitor)
+## 1. Bugs / correctness
 
-- [x] ~~Cursor parallax camera drift~~ — FIXED. Parallax is now a clamped
-      offset off a stored base position, resolved absolutely each frame.
-- [ ] ~~No WebGL fallback~~ — DONE (detection, static image, context lost/restored).
+- [ ] **Dead code.** `allTextures` in `drone.js` is still collected and never
+      returned or used — it was written for disposal that never got wired up.
+      The `sag` parameter in `makeDynamicWire` is also unused.
+- [ ] **Disposal is only half done.** `initScene()` returns a `dispose()` that
+      calls `renderer.dispose()` and `composer.dispose()`, but nothing disposes
+      the geometries, materials or textures. Fine for a static page; wrong if
+      this ever mounts and unmounts.
+- [ ] **Heat-shrink sleeve orientation is probably wrong.** The sleeve does
+      `lookAt(to)` where `to` is in the parent's space, but `lookAt` works in
+      world space. Small and easy to miss visually, but it is not doing what
+      the code says.
 
-- [ ] Dead code: `allTextures` in `drone.js` is collected and never returned or
-      used (was intended for disposal). `sag` param in `makeDynamicWire` unused.
+## 2. Spec items still not met
 
-## 2. Spec requirements not met
+- [ ] **Render-on-demand.** Spec 1H said explicitly: do not run an unconditional
+      full-rate rAF loop. It still does. Rendering pauses when the canvas is
+      offscreen, which is not the same thing. Note the prop spin phase needs
+      continuous frames, so this needs care rather than a naive dirty flag.
+- [ ] **Part 3 polish never done:** light sweep, canvas film-grain pass, depth
+      of field, dust motes.
+- [ ] Not every `BoxGeometry` is a `RoundedBoxGeometry` — header pins and MOSFET
+      legs stay sharp deliberately (sub-mm edges never resolve, and rounding
+      ~120 pins costs real triangles).
+- [ ] `environmentIntensity` is 0.32 rather than ~0.9, and prop
+      `envMapIntensity` is 0.7 rather than 1.0. Both deliberate and measured.
+      Revisit if the HDRI is ever swapped.
 
-- [ ] **Render-on-demand never implemented** (spec 1H explicitly: "do not run an
-      unconditional full-rate rAF loop"). It still runs one. Pausing when
-      offscreen is not the same thing.
-- [ ] ~~Blades have no camber/twist~~ — DONE, lofted airfoil, gloss restored.
+## 3. Never verified
 
-- [ ] **No disposal/teardown.** Only the HDRI disposes.
-- [ ] Not every `BoxGeometry` became `RoundedBoxGeometry` — header pins and
-      MOSFET legs left sharp on purpose (sub-mm edges never resolve on screen,
-      and rounding ~120 pins is real triangle cost). Deviation, but deliberate.
-- [ ] Skipped from Part 3: light sweep, canvas film-grain pass, depth of field,
-      dust motes.
-- [ ] `environmentIntensity` is 0.32, spec said ~0.9. Deliberate — measurement
-      showed the bright studio HDRI was supplying ~58% of all scene light and
-      flattening the key pool. Revisit if the HDRI is ever swapped.
+- [ ] **The composed page.** I can render the canvas and inspect the DOM
+      numerically, but I cannot see the page. Type scale, spacing, watermark
+      weight and CTA placement are unreviewed by me.
+- [ ] **Mobile layout — entirely unverified.** Breakpoints written blind.
+- [ ] **Framerate never measured.** The 60fps target is unconfirmed, and the
+      detail pass added ~28k triangles since the last look.
+- [ ] **The prop spin-down**, which is the most tuning-sensitive thing added.
+- [ ] Whether the emissive accent trim actually crosses the bloom threshold
+      (emissive 1.4 vs threshold 0.80).
+- [ ] `prefers-reduced-motion` path.
+- [ ] Safari specifically — `MeshPhysicalMaterial` transmission and
+      `backdrop-filter` are both risk areas there.
+- [ ] Lighthouse / real profiling.
 
-## 3. Never verified (could not check in this environment)
+## 4. Decisions waiting on you
 
-- [ ] **The composed page has never been seen by me.** Canvas renders and
-      numeric DOM inspection only. Type scale, watermark weight, CTA placement,
-      spacing, and rhythm are all unreviewed.
-- [ ] **Mobile layout entirely unverified.** Breakpoints written blind.
-- [ ] **Framerate never measured once.** Spec asks for 60fps desktop.
-- [ ] **Whether the emissive accent trim actually crosses the bloom threshold.**
-      Emissive 1.4 vs threshold 0.80. Spec warned too-low emissive "looks flat
-      and dead." Unconfirmed.
-- [ ] `prefers-reduced-motion` path untested.
-- [ ] Cross-browser, **Safari especially** — `MeshPhysicalMaterial` transmission
-      and `backdrop-filter` are both risk areas there.
-- [ ] Lighthouse / real perf profiling never run.
-
-## 4. Visual compromises
-
-- [ ] Frame reads blue-grey from some angles rather than true near-black; the
-      rim light is doing a lot of work on it.
-- [ ] ESP32 shield is still among the brightest objects — spec wanted the motors
-      to hold that.
-- [ ] Camera framing sits the drone low, clipped at the viewport bottom.
-- [ ] Contact shadow is a static blob. It does not track the silhouette or react
-      to the explode state, so it is wrong in the exploded view.
-- [ ] Perfboard holes, copper traces, silkscreen, castellated pads are
-      **textures, not geometry** — correct at distance, fake up close.
-- [ ] Silkscreen is generic, not real pin labels.
-- [ ] ~~Cream photo tiles~~ — INVESTIGATED (item 8): real, loading fine, 80% down the page in the Spec Sheet. Awaiting your call.
-
-- [ ] Still procedural geometry, not the Blender `.glb` from the original plan.
-
-## 5. Content / honesty
-
+- [ ] **Cream photo tiles.** Investigated: eight of them, all rendering, no
+      404s, 8341px down (80% of the page) in the Spec Sheet. `#f2ebe0` plates
+      against a `#08080a` page. The plates exist because the product photos have
+      white backgrounds, so recolouring the plate just moves the white inside
+      it — the real fix is background-removed cutouts.
 - [ ] **HUD telemetry is simulated.** ALT / PITCH / VBAT are derived from scroll
-      position, not real data. CLAUDE.md's tone rule says do not oversell —
-      this should be labelled as a simulated readout, or it reads as live
-      telemetry from a drone that has never flown.
-- [ ] Build-log stage statuses are hardcoded; update as stages complete.
-- [ ] CLAUDE.md is now out of date — the caption narrative changed from the
-      7 coding stages to a 7-step physical disassembly order.
-- [ ] `download (1).avif` was never identified or used.
-- [ ] No battery photo was ever supplied; the battery is modelled from spec only.
+      position for a drone that has not flown. CLAUDE.md's own tone rule says
+      don't oversell; this should probably be labelled as a simulated readout.
+
+## 5. Visual compromises
+
+- [ ] Contact shadow is a static blob — it does not track the silhouette or
+      react to the explode state, so it is wrong in the exploded view.
+- [ ] ESP32 shield is still among the brightest objects; the motors should hold
+      that.
+- [ ] Camera framing sits the drone low, clipped at the viewport bottom.
+- [ ] Perfboard holes, copper traces, silkscreen and pads are textures, not
+      geometry — correct at distance, fake up close.
+- [ ] Silkscreen is generic rather than real pin labels.
+- [ ] Still procedural geometry, not the Blender `.glb` from the original plan.
 
 ## 6. Accessibility
 
-- [ ] Scroll experience is **not keyboard accessible** — exploded states are
-      unreachable without scrolling. No alternative controls.
-- [ ] `--fg-muted` at 0.55 alpha on near-black likely **fails WCAG AA** for small
+- [ ] **The scroll experience is not keyboard accessible.** Exploded states are
+      unreachable without scrolling; there are no alternative controls. This is
+      the biggest gap — the whole product demo is scroll-gated.
+- [ ] `--fg-muted` at 0.55 alpha on near-black likely fails WCAG AA for small
       body text. Needs a contrast check.
-- [ ] Canvas has no accessible description of what it depicts.
 - [ ] No skip link.
+- [x] Canvas has a `role` and `aria-label`.
 
 ## 7. Project / infrastructure
 
-- [ ] ~~GitHub Pages~~ — LIVE at https://ishanchabria.github.io/aia-1x-website/
-
-- [x] ~~Bundle size~~ — entry chunk now 3.11KB; scene code-split behind a dynamic import. Scene chunk still ~790KB.
-- [ ] Part photos: no `srcset`, no lazy loading, full-size webp.
-- [ ] No meta description, Open Graph tags, or social preview image.
-- [x] ~~Favicon / meta / OG~~ — DONE.
-- [ ] `window.__debug` and the `.shots` capture middleware are committed
-      (DEV-gated, but present in source).
+- [ ] **Scene chunk is 792KB (243KB gzipped).** The entry chunk is now only
+      3.2KB because the scene is dynamically imported, so the shell paints
+      immediately — but the scene payload itself is unchanged. three.js is the
+      bulk of it.
+- [ ] HDRI is 1.6MB. Loads async behind the RoomEnvironment fallback, so it
+      never blocks, but it is the single largest asset.
+- [ ] Part photos: no `srcset`, no lazy loading (340KB total).
+- [ ] `window.__debug` and the `.shots` capture middleware are committed. Both
+      are DEV-only, but they are in the source.
 - [ ] `.claude/launch.json` is gitignored, so a fresh clone cannot preview via
       that path without recreating it.
-- [ ] Node needs a PATH workaround in this environment each session; the dev
-      server does not survive between sessions.
+- [ ] CLAUDE.md is out of date — the caption narrative changed from the seven
+      coding stages to a seven-step physical disassembly order.
+- [ ] Build-log stage statuses are hardcoded; update them as stages complete.
+- [ ] `download (1).avif` was never identified or used.
+- [ ] No battery photo was ever supplied; the battery is modelled from spec only.
 
 ---
 
+## Done in the nine-item work order
+
+- [x] Cursor parallax camera drift — was walking the camera 12,490 units out
+- [x] WebGL fallback: detection, static image, context lost/restored, try/catch
+- [x] Pixelated platform — plane scale vs texture resolution, plus anisotropy 1
+- [x] GitHub Pages deploy, live, with base-aware asset paths
+- [x] Propeller blades rebuilt as lofted airfoils with real twist
+- [x] Propeller scroll choreography: running, spin-down, stationary, separating
+- [x] Detail pass across motors, frame, PCBs, wires, battery
+- [x] Cream photo tiles investigated
+- [x] Final static assets captured from the finished model
+- [x] Entry bundle code-split 700KB -> 3.2KB
+- [x] Favicon, meta description, Open Graph and Twitter tags
+
 ## Suggested order
 
-1. Parallax drift (bug, small fix)
-2. WebGL fallback (bug, visitors get nothing today)
-3. GitHub Pages deploy — the site does not exist publicly yet
-4. Look at the page on desktop + mobile and fix what that surfaces
-5. Blade twist, then restore prop gloss
-6. Drone offset right / caption column
-7. HUD honesty labelling + accessibility contrast
-8. Render-on-demand, disposal, code splitting
-9. Remaining Part 3 polish
+1. Keyboard accessibility — the demo is entirely scroll-gated today
+2. Look at the deployed page on desktop and mobile; fix what that surfaces
+3. HUD honesty labelling and the text contrast check
+4. Cream tile decision (cutouts, if you want them fixed properly)
+5. Contact shadow tracking the explode state
+6. Render-on-demand, full disposal, dead code
+7. Remaining Part 3 polish
