@@ -1,4 +1,5 @@
 import "./style.css";
+import { initDotField } from "./dotfield.js";
 
 // ---------------------------------------------------------------------------
 // Entry point. Page chrome works with or without WebGL; the 3D scene is loaded
@@ -36,51 +37,14 @@ const params = new URLSearchParams(location.search);
 // development machine.
 if (params.has("plain")) document.documentElement.dataset.fx = "off";
 
-// --- cursor-reactive dot grid ---
-// Flip to brighten the dots around the cursor instead of clearing them.
-const DOT_MASK_INVERT = false;
-
-(function dotGrid() {
-  const grid = document.getElementById("dotgrid");
-  if (!grid) return;
-  if (DOT_MASK_INVERT) grid.classList.add("is-inverted");
-  // no pointer to follow, or motion is unwanted: leave the plain dot field
-  if (window.matchMedia("(hover: none)").matches) return;
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-  let tx = window.innerWidth / 2;
-  let ty = window.innerHeight * 0.4;
-  let cx = tx;
-  let cy = ty;
-  let queued = false;
-
-  function schedule() {
-    if (queued) return;
-    queued = true;
-    requestAnimationFrame(step);
-  }
-
-  // One style write per frame at most — never one per pointer event — and
-  // lerped so the hole trails the cursor with a little weight.
-  function step() {
-    queued = false;
-    cx += (tx - cx) * 0.12;
-    cy += (ty - cy) * 0.12;
-    grid.style.setProperty("--mx", `${cx.toFixed(1)}px`);
-    grid.style.setProperty("--my", `${cy.toFixed(1)}px`);
-    if (Math.abs(tx - cx) > 0.5 || Math.abs(ty - cy) > 0.5) schedule();
-  }
-
-  window.addEventListener(
-    "pointermove",
-    (e) => {
-      tx = e.clientX;
-      ty = e.clientY;
-      schedule();
-    },
-    { passive: true }
-  );
-  step();
+// --- cursor-reactive particle field ---
+// Real particles on a canvas, not a CSS mask: the dots are pushed around by
+// the cursor and spring back, which a mask fundamentally cannot do.
+(function dotField() {
+  const canvas = document.getElementById("dotfield");
+  if (!canvas || params.has("plain")) return;
+  const field = initDotField(canvas);
+  if (import.meta.env.DEV && field) window.__dotfield = field;
 })();
 
 // --- WebGL support ---

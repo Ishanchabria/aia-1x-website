@@ -13,7 +13,9 @@
    or fill colour; at the saturation it needs to glow it fails contrast.
    =========================================================================== */
 :root {
-  --bg-deep: #08080a;
+  /* True black, not near-black. The particle field is drawn at low alpha and
+     only reads as a star field against #000; at #08080a it reads as static. */
+  --bg-deep: #000000;
   --bg-raised: #101014;
   --fg: #f4f2ee;
   --fg-muted: rgba(244, 242, 238, 0.72);
@@ -62,16 +64,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Layered studio background: a pool of light behind the drone falling to
-   near-black at the edges, so it reads as a lit room rather than a dark box. */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -3;
-  background:
-    radial-gradient(120vh 90vh at 50% 38%, #131318 0%, #0c0c10 45%, var(--bg-deep) 78%);
-}
+/* There used to be a "studio pool" here — a radial gradient peaking at #131318
+   in the middle of the viewport, meant to read as a lit room rather than a
+   dark box. It is gone, and deliberately so. That pool was what put the field
+   of dots on grey-charcoal instead of black: measured at the centre it lifted
+   the page to rgb(19,19,24), and dim dots on grey read as noise where the same
+   dots on true black read as a star field. The dot field needs a true black
+   ground more than the page needed a lit floor. Do not reintroduce a
+   centre-weighted lightener here. */
 
 /* ---------------------------------- aurora --------------------------------
    Violet/indigo forms bleeding in from the left and right edges, cut off by
@@ -88,11 +88,16 @@ body::before {
   pointer-events: none;
   filter: blur(120px);
   will-change: transform;
+  /* Tightened so the middle of the screen stays true black for the particle
+     field. A blob centred at 4% with a 38vw radius reached 42vw — almost
+     halfway across — and the 120px blur carried it further still. Smaller
+     radii, centres pushed harder into the corners, and the stops pulled in to
+     ~58% so each one is finished well before the centre. */
   background:
-    radial-gradient(38vw 46vh at 4% 30%, rgba(109, 61, 245, 0.3) 0%, transparent 70%),
-    radial-gradient(42vw 40vh at 97% 62%, rgba(59, 61, 245, 0.22) 0%, transparent 70%),
-    radial-gradient(30vw 34vh at 88% 12%, rgba(160, 61, 245, 0.14) 0%, transparent 72%),
-    radial-gradient(34vw 38vh at 10% 88%, rgba(109, 61, 245, 0.16) 0%, transparent 72%);
+    radial-gradient(26vw 34vh at 0% 26%, rgba(109, 61, 245, 0.34) 0%, transparent 58%),
+    radial-gradient(28vw 30vh at 100% 66%, rgba(59, 61, 245, 0.26) 0%, transparent 58%),
+    radial-gradient(22vw 26vh at 94% 6%, rgba(160, 61, 245, 0.16) 0%, transparent 60%),
+    radial-gradient(24vw 28vh at 4% 96%, rgba(109, 61, 245, 0.18) 0%, transparent 60%);
   animation: auroraDrift 52s var(--ease) infinite alternate;
 }
 
@@ -102,8 +107,8 @@ body::before {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(36vw 42vh at 0% 70%, rgba(59, 61, 245, 0.18) 0%, transparent 70%),
-    radial-gradient(32vw 36vh at 100% 26%, rgba(160, 61, 245, 0.12) 0%, transparent 72%);
+    radial-gradient(24vw 30vh at 0% 74%, rgba(59, 61, 245, 0.2) 0%, transparent 58%),
+    radial-gradient(22vw 26vh at 100% 22%, rgba(160, 61, 245, 0.14) 0%, transparent 60%);
   animation: auroraDrift2 67s var(--ease) infinite alternate;
 }
 
@@ -136,38 +141,18 @@ body::after {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* -------------------------------- dot grid -------------------------------
-   Fine dot matrix that clears in a soft circle around the cursor, revealing
-   the aurora and the black beneath. Sits above the aurora but BELOW the canvas
-   (z-index -1 vs the canvas at 1), so the drone never has dots on it. */
-.dotgrid {
+/* ------------------------------ particle field ---------------------------
+   The canvas the field draws into. Above the aurora (-2), below the drone
+   canvas (1), so the drone is never drawn over. Sizing, DPR and all drawing
+   are owned by src/dotfield.js — this rule only places the element.
+
+   The old CSS-mask dot grid lived here. It is gone: a mask can only hide or
+   reveal a static pattern, and these dots have to move individually. */
+.dotfield {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  --mx: 50%;
-  --my: 40%;
-  background-image: radial-gradient(circle, rgba(190, 180, 255, 0.16) 1px, transparent 1px);
-  background-size: 22px 22px;
-  /* transparent at the centre = dots masked away = hole. The 35%->100% ramp is
-     what feathers the edge instead of cutting a hard circle. */
-  -webkit-mask-image: radial-gradient(circle 180px at var(--mx) var(--my), transparent 0%, transparent 35%, #000 100%);
-  mask-image: radial-gradient(circle 180px at var(--mx) var(--my), transparent 0%, transparent 35%, #000 100%);
-}
-
-/* Inverted: dots BRIGHTEN around the cursor instead of clearing. Toggled from
-   JS via DOT_MASK_INVERT so both directions can be compared. */
-.dotgrid.is-inverted {
-  -webkit-mask-image: radial-gradient(circle 180px at var(--mx) var(--my), #000 0%, #000 35%, transparent 100%);
-  mask-image: radial-gradient(circle 180px at var(--mx) var(--my), #000 0%, #000 35%, transparent 100%);
-}
-
-/* no pointer to follow: show the plain field */
-@media (hover: none) {
-  .dotgrid {
-    -webkit-mask-image: none;
-    mask-image: none;
-  }
 }
 
 /* ------------------------- accessibility affordances ---------------------- */
@@ -732,7 +717,7 @@ html[data-gl="fallback"] #drone-canvas {
 /* ?plain — diagnostic only, never a design state. Removes the three painted
    background layers so their cost can be measured against the canvas alone. */
 html[data-fx="off"] .aurora,
-html[data-fx="off"] .dotgrid,
+html[data-fx="off"] .dotfield,
 html[data-fx="off"] body::before,
 html[data-fx="off"] body::after {
   display: none !important;
