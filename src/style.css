@@ -1,7 +1,16 @@
 /* ===========================================================================
-   WARM palette — DOM only. The 3D canvas runs a cool blue-black palette; the
-   contrast between a cool object and warm UI is deliberate, so no blue from
-   the scene may leak into type, chrome, or accents here.
+   QUARTZ + ELECTRIC BLUE — DOM palette.
+
+   This replaces the earlier warm coral/cream scheme. The old rule was that
+   the DOM stayed warm so it read against the cool canvas; that separation is
+   deliberately gone now. The accent is quartz white — cool, bright, mineral,
+   pitched slightly cooler and brighter than the cream body text so it still
+   sits above it in the hierarchy — and every glowing edge is neon electric
+   blue.
+
+   Two roles, kept apart: --accent is the SOLID one (fills, values, markers),
+   --glow is the LIT one (borders, sweeps, halos). Don't use --glow as a text
+   or fill colour; at the saturation it needs to glow it fails contrast.
    =========================================================================== */
 :root {
   --bg-deep: #08080a;
@@ -9,8 +18,13 @@
   --fg: #f4f2ee;
   --fg-muted: rgba(244, 242, 238, 0.72);
   --fg-faint: rgba(244, 242, 238, 0.18);
-  --accent: #c25640;
-  --accent-deep: #91170c;
+
+  --accent: #f7f9fb;
+  --accent-dim: #cdd6df;
+
+  --glow: #2ec8ff;
+  --glow-rgb: 46, 200, 255;
+  --glow-hot: #bff2ff;
 
   --font-display: "Space Grotesk", "Inter", sans-serif;
   --font-body: "Inter", sans-serif;
@@ -481,8 +495,13 @@ html[data-gl="fallback"] #drone-canvas {
 }
 
 /* ------------------------- animated shine borders -------------------------
-   A travelling bright point riding a subdued 1px edge — warm coral through
-   cream, per the palette rule. The fill stays solid; only the edge shines. */
+   A travelling bright point riding a subdued 1px edge, now neon electric
+   blue. Two layers make it read as neon rather than as a blue line: the ring
+   itself runs blue with a near-white core, because a real neon tube is white
+   at the centre and coloured at the edges, and a static halo sits underneath
+   it. The halo does not animate — only the travelling point does, which keeps
+   the blurred layer out of the animation. The fill stays solid; only the edge
+   shines. */
 @property --shine-angle {
   syntax: "<angle>";
   initial-value: 0deg;
@@ -513,10 +532,10 @@ html[data-gl="fallback"] #drone-canvas {
   padding: 1px;
   background: linear-gradient(
     100deg,
-    rgba(244, 242, 238, 0.1) 0%,
-    rgba(224, 104, 74, 0.85) 45%,
-    rgba(250, 225, 195, 0.95) 52%,
-    rgba(244, 242, 238, 0.1) 100%
+    rgba(var(--glow-rgb), 0.12) 0%,
+    rgba(var(--glow-rgb), 0.9) 45%,
+    var(--glow-hot) 52%,
+    rgba(var(--glow-rgb), 0.12) 100%
   );
   background-size: 260% 100%;
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -536,12 +555,12 @@ html[data-gl="fallback"] #drone-canvas {
   .cta::before {
     background: conic-gradient(
       from var(--shine-angle),
-      rgba(244, 242, 238, 0.08) 0deg,
-      rgba(224, 104, 74, 0.9) 60deg,
-      rgba(250, 225, 195, 1) 90deg,
-      rgba(224, 104, 74, 0.5) 130deg,
-      rgba(244, 242, 238, 0.08) 220deg,
-      rgba(244, 242, 238, 0.08) 360deg
+      rgba(var(--glow-rgb), 0.1) 0deg,
+      rgba(var(--glow-rgb), 0.95) 60deg,
+      var(--glow-hot) 90deg,
+      rgba(var(--glow-rgb), 0.55) 130deg,
+      rgba(var(--glow-rgb), 0.1) 220deg,
+      rgba(var(--glow-rgb), 0.1) 360deg
     );
     animation: shineSpin 4s linear infinite;
   }
@@ -572,8 +591,8 @@ html[data-gl="fallback"] #drone-canvas {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(224, 104, 74, 0.9),
-    rgba(250, 225, 195, 1),
+    rgba(var(--glow-rgb), 0.9),
+    var(--glow-hot),
     transparent
   );
   background-size: 220% 100%;
@@ -597,22 +616,40 @@ html[data-gl="fallback"] #drone-canvas {
 
 .cta-solid {
   background: var(--accent);
-  color: #14100f;
+  /* near-black on quartz rather than pure #000 — pure black on a bright fill
+     reads as a hole punched in the page */
+  color: #0d1116;
+  /* The travelling ring goes dim on part of its cycle, and a dim ring outside
+     a bright fill reads as an uneven dark rim rather than as an edge. The
+     halo fills that space with blue so the quartz pill sits in the same light
+     as the ghost button instead of looking cut out of it. */
+  box-shadow: 0 0 26px -8px rgba(var(--glow-rgb), 0.55);
+  transition: transform 0.3s var(--ease), background 0.3s var(--ease),
+    box-shadow 0.3s var(--ease);
 }
 
 .cta-solid:hover {
   transform: translateY(-2px);
-  background: #d0654e;
+  background: #ffffff;
+  box-shadow: 0 0 34px -6px rgba(var(--glow-rgb), 0.8);
 }
 
+/* The ghost button is where the neon lives. The halo is a box-shadow, so it
+   sits under the animated ring without being redrawn by the animation. */
 .cta-ghost {
-  border: 1px solid var(--fg-faint);
+  border: 1px solid rgba(var(--glow-rgb), 0.3);
   color: var(--fg);
+  box-shadow: 0 0 20px -6px rgba(var(--glow-rgb), 0.5),
+    inset 0 0 14px -8px rgba(var(--glow-rgb), 0.45);
+  transition: transform 0.3s var(--ease), border-color 0.3s var(--ease),
+    box-shadow 0.3s var(--ease);
 }
 
 .cta-ghost:hover {
   transform: translateY(-2px);
-  border-color: var(--fg-muted);
+  border-color: rgba(var(--glow-rgb), 0.65);
+  box-shadow: 0 0 30px -4px rgba(var(--glow-rgb), 0.75),
+    inset 0 0 18px -8px rgba(var(--glow-rgb), 0.6);
 }
 
 .scroll-cue {
@@ -714,8 +751,10 @@ html[data-fx="off"] body::after {
   border-left-color: #d8a24a;
 }
 
+/* The meter is an instrument, not part of the palette — amber and red mean
+   amber and red here, and must not follow the accent wherever it goes next. */
 .fpsmeter[data-health="bad"] {
-  border-left-color: var(--accent-deep);
+  border-left-color: #e0483a;
   color: var(--fg);
 }
 
@@ -831,8 +870,8 @@ html[data-fx="off"] body::after {
 
 .stage-item[data-status="done"] .stage-status {
   color: var(--fg);
-  border-color: var(--accent);
-  background: rgba(194, 86, 64, 0.16);
+  border-color: var(--accent-dim);
+  background: rgba(247, 249, 251, 0.12);
 }
 
 .stage-item[data-status="done"] .stage-num,

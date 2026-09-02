@@ -59,17 +59,33 @@ Add `?plain` alongside it to strip the painted background layers — the aurora
 and its 120px blur, the dot grid's full-viewport mask, the grain. Comparing
 `?fps` against `?fps&plain` separates WebGL cost from CSS cost.
 
-## Two palettes, kept separate
+## Palette
 
-This is the core art direction and the easiest thing to get wrong:
+The DOM ran a warm coral/cream scheme deliberately set against the cool
+canvas. That separation was dropped on purpose — the whole page is cool now.
 
-- **Inside the canvas — cool.** Blue-black drone, violet/indigo aurora, blue
-  accent trim. The only warm things are the real wire colours, which are small
-  enough to read as accurate detail.
-- **In the DOM — warm.** Coral accent, cream type, warm shine on the buttons.
+Two accent roles, and they are not interchangeable:
 
-The contrast between a cool object and warm UI is deliberate. Don't harmonise
-them.
+- **`--accent`, quartz white (`#f7f9fb`) — the solid one.** Button fills, HUD
+  values, eyebrows, the progress rail, stage markers. Pitched slightly cooler
+  and brighter than the cream body text (`--fg`) so it still sits above it in
+  the hierarchy.
+- **`--glow`, neon electric blue (`#2ec8ff`) — the lit one.** Every glowing
+  edge: the travelling ring on the buttons, the nav underline sweep, the
+  halos. Never use it as a text or fill colour; at the saturation it needs to
+  glow, it fails contrast.
+
+The neon reads as neon because the ring runs blue with a near-white core
+(`--glow-hot`), the way a real tube is white at the centre and coloured at the
+edges. Halos are `box-shadow`, deliberately not animated, so the blurred layer
+stays out of the animation.
+
+Inside the canvas nothing changed: blue-black drone, violet/indigo aurora,
+blue trim, with the real wire colours as the only warm thing.
+
+Measured after the change — quartz accent 18.96:1 on the page background and
+14.94:1 over the brightest part of the aurora, body copy 9.29:1 and 7.87:1.
+All comfortably past AA and AAA.
 
 ## Scroll model
 

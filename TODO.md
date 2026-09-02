@@ -9,6 +9,15 @@ blue motor lamps. What follows is everything genuinely left.
 
 ## Needs you — I cannot do these from here
 
+- [ ] **The HUD labels fail contrast, and always have.** `BUILD`, `ALT`,
+      `PITCH`, `VBAT`, `STAGE` use `--fg-faint` (18% white), which measures
+      **1.57:1** against the panel. AA wants 4.5:1 for text this size. This
+      predates the quartz/neon change — I measured it while checking the new
+      palette — and it is real text carrying meaning, not decoration.
+      Raising them to `--fg-muted` (72%) fixes it and costs one line, but it
+      makes the labels considerably louder than the near-invisible look you
+      have approved twice, so I have not done it. Say the word.
+
 - [ ] **Decide whether the load hitch is worth a design change.** Measured on
       your hardware: the laptop freezes ~280ms once, right at load, and 107ms
       of that is the painted background layers — almost entirely the aurora's
