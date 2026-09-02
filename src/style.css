@@ -681,6 +681,15 @@ html[data-gl="fallback"] #drone-canvas {
   text-align: right;
 }
 
+/* ?plain — diagnostic only, never a design state. Removes the three painted
+   background layers so their cost can be measured against the canvas alone. */
+html[data-fx="off"] .aurora,
+html[data-fx="off"] .dotgrid,
+html[data-fx="off"] body::before,
+html[data-fx="off"] body::after {
+  display: none !important;
+}
+
 /* Diagnostic meter, only present when the URL carries ?fps. Top-left so it
    never sits over the HUD, and deliberately plain — it is an instrument, not
    part of the design. Warm, like the rest of the DOM. */

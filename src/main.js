@@ -27,6 +27,15 @@ document.querySelectorAll(".section .section-inner").forEach((el) => {
   revealObserver.observe(el);
 });
 
+const params = new URLSearchParams(location.search);
+
+// ?plain strips the three painted background layers — the aurora and its
+// blur(120px), the dot grid's full-viewport mask, and the grain — leaving the
+// canvas and the type. Paired with ?fps it answers "is the stutter the WebGL
+// or is it the CSS" in one run, which is not something I can profile from a
+// development machine.
+if (params.has("plain")) document.documentElement.dataset.fx = "off";
+
 // --- cursor-reactive dot grid ---
 // Flip to brighten the dots around the cursor instead of clearing them.
 const DOT_MASK_INVERT = false;
@@ -137,6 +146,11 @@ let scene = null;
 // persistent number worthless.
 const REAL_FRAME_LIMIT_MS = 500;
 
+// A peak on its own says a stutter happened but not why, and I have guessed
+// wrong about the cause more than once. So the worst frame carries a tag: what
+// the page was doing at the moment it happened. `resize` is the interesting
+// one on a phone — hiding the address bar mid-scroll fires it, and the handler
+// reallocates every render target.
 function startFpsMeter(handle) {
   const el = document.createElement("div");
   el.className = "fpsmeter";
@@ -145,13 +159,20 @@ function startFpsMeter(handle) {
 
   const drawsNow = () => handle?.drawsSoFar?.() ?? 0;
 
+  let lastResize = -Infinity;
+  let lastPointer = -Infinity;
+  addEventListener("resize", () => (lastResize = performance.now()), { passive: true });
+  addEventListener("pointermove", () => (lastPointer = performance.now()), { passive: true });
+
   let frames = 0;
   let worst = 0;
   let last = performance.now();
   let windowStart = last;
+  let firstDrawAt = 0;
   let lastDraws = drawsNow();
   let lastTickDraws = lastDraws;
   let scrollPeak = 0;
+  let peakTag = "";
 
   function tick(now) {
     requestAnimationFrame(tick);
@@ -162,11 +183,24 @@ function startFpsMeter(handle) {
     const draws = drawsNow();
     const drew = draws > lastTickDraws;
     lastTickDraws = draws;
+    if (drew && !firstDrawAt) firstDrawAt = now;
 
     const credible = gap < REAL_FRAME_LIMIT_MS && !document.hidden;
     if (credible) {
       if (gap > worst) worst = gap;
-      if (drew && gap > scrollPeak) scrollPeak = gap;
+      if (drew && gap > scrollPeak) {
+        scrollPeak = gap;
+        const since = (now - firstDrawAt) / 1000;
+        // Measure the window from the START of the frame, not the end. A long
+        // stutter is exactly when an event lands mid-frame, and comparing
+        // against `now` would push the thing that caused it out of range.
+        const frameStart = now - gap;
+        const causes = [];
+        if (lastResize > frameStart - 400) causes.push("resize");
+        if (lastPointer > frameStart - 120) causes.push("pointer");
+        if (since < 2) causes.push("load");
+        peakTag = `@${since.toFixed(1)}s${causes.length ? " " + causes.join("+") : ""}`;
+      }
     }
 
     const elapsed = now - windowStart;
@@ -177,7 +211,7 @@ function startFpsMeter(handle) {
 
     el.textContent =
       `${rafFps} fps · ${drawFps} draws/s · worst ${worst.toFixed(1)}ms · ` +
-      `scroll peak ${scrollPeak.toFixed(1)}ms`;
+      `peak ${scrollPeak.toFixed(0)}ms ${peakTag}`;
     el.dataset.health = scrollPeak > 50 ? "bad" : scrollPeak > 22 ? "warn" : "ok";
 
     frames = 0;
@@ -197,7 +231,7 @@ async function start() {
     const { initScene } = await import("./scene.js");
     scene = initScene();
     setGLState("live");
-    if (new URLSearchParams(location.search).has("fps")) startFpsMeter(scene);
+    if (params.has("fps")) startFpsMeter(scene);
   } catch (err) {
     console.error("[AIA-1X] 3D scene failed to initialise", err);
     showFallback();
