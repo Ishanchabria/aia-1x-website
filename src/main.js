@@ -117,43 +117,68 @@ let scene = null;
 // only honestly be measured on a real machine, and typing a URL is easier than
 // getting a paste past Chrome's console protection.
 //
-// Two numbers, because they mean different things. "draws" is frames the 3D
-// scene actually rendered — the page idles at zero on purpose when nothing has
-// changed, so a low draws figure while sitting still is correct, not a stall.
-// "worst" is the longest gap between animation frames in the last second; that
-// is the one that shows up as a stutter.
+// Three numbers, because they mean different things.
+//
+// "draws" is frames the 3D scene actually rendered. The page idles at a low
+// number on purpose — at rest only the environment drift redraws, throttled to
+// ~24fps, and on mobile not even that — so a small figure while sitting still
+// is correct, not a stall.
+//
+// "worst" is the longest frame gap in the last window. It resets constantly,
+// so read it while moving.
+//
+// "scroll peak" is the one to report: the longest gap on a frame that actually
+// drew something, kept for the whole visit. It answers "did scrolling ever
+// stutter" without needing to be read at the right instant.
+//
+// Both peaks ignore gaps over half a second. A tab switch, a sleep, or the
+// initial load reads as a multi-second gap that is not a stutter — a real
+// measurement came back with a 37-second "peak", which made the only
+// persistent number worthless.
+const REAL_FRAME_LIMIT_MS = 500;
+
 function startFpsMeter(handle) {
   const el = document.createElement("div");
   el.className = "fpsmeter";
   el.setAttribute("role", "status");
   document.body.appendChild(el);
 
+  const drawsNow = () => handle?.drawsSoFar?.() ?? 0;
+
   let frames = 0;
   let worst = 0;
   let last = performance.now();
   let windowStart = last;
-  let lastDraws = handle?.drawsSoFar?.() ?? 0;
-  let sessionWorst = 0;
+  let lastDraws = drawsNow();
+  let lastTickDraws = lastDraws;
+  let scrollPeak = 0;
 
   function tick(now) {
     requestAnimationFrame(tick);
     const gap = now - last;
     last = now;
     frames++;
-    if (gap > worst) worst = gap;
+
+    const draws = drawsNow();
+    const drew = draws > lastTickDraws;
+    lastTickDraws = draws;
+
+    const credible = gap < REAL_FRAME_LIMIT_MS && !document.hidden;
+    if (credible) {
+      if (gap > worst) worst = gap;
+      if (drew && gap > scrollPeak) scrollPeak = gap;
+    }
 
     const elapsed = now - windowStart;
     if (elapsed < 500) return;
 
-    const draws = handle?.drawsSoFar?.() ?? 0;
     const rafFps = Math.round((frames * 1000) / elapsed);
     const drawFps = Math.round(((draws - lastDraws) * 1000) / elapsed);
-    if (worst > sessionWorst) sessionWorst = worst;
 
-    el.textContent = `${rafFps} fps · ${drawFps} draws/s · worst ${worst.toFixed(
-      1
-    )}ms (peak ${sessionWorst.toFixed(1)}ms)`;
-    el.dataset.health = sessionWorst > 50 ? "bad" : sessionWorst > 22 ? "warn" : "ok";
+    el.textContent =
+      `${rafFps} fps · ${drawFps} draws/s · worst ${worst.toFixed(1)}ms · ` +
+      `scroll peak ${scrollPeak.toFixed(1)}ms`;
+    el.dataset.health = scrollPeak > 50 ? "bad" : scrollPeak > 22 ? "warn" : "ok";
 
     frames = 0;
     worst = 0;
