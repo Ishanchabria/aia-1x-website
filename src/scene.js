@@ -356,6 +356,12 @@ export function initScene() {
 
     updateDynamicWires(dynamicWires);
 
+    // the blob does not track the silhouette, so rather than lie about a shape
+    // it no longer has, it fades and tightens as the drone comes apart
+    contact.material.opacity = 0.55 * (1 - Math.min(1, progress * 1.6));
+    const cs = 1 - progress * 0.35;
+    contact.scale.set(cs, cs, 1);
+
     drone.rotation.y = progress * Math.PI * 1.1;
 
     // writes the BASE camera position only — parallax is layered on in render()
@@ -421,6 +427,68 @@ export function initScene() {
   });
 
   // Pause rendering entirely when the canvas is offscreen.
+  // --- keyboard route through the exploded view -------------------------
+  // Without this the entire demo is scroll-gated. Stepping scrolls the page to
+  // the middle of each stage window, so keyboard and scroll drive one system
+  // rather than two that can disagree.
+  (function stageControls() {
+    const prev = document.getElementById("stage-prev");
+    const next = document.getElementById("stage-next");
+    const now = document.getElementById("stage-now");
+    const live = document.getElementById("stage-live");
+    const section = document.getElementById("scroll-scene");
+    if (!prev || !next || !section) return;
+
+    const stageOf = (p) => Math.min(stageCount - 1, Math.floor(p * stageCount));
+
+    function goTo(stage) {
+      const s = Math.max(0, Math.min(stageCount - 1, stage));
+      const mid = (s + 0.5) / stageCount;
+      const top = section.offsetTop;
+      const range = section.offsetHeight - window.innerHeight;
+      window.scrollTo({ top: top + range * mid, behavior: "smooth" });
+      announce(s);
+    }
+
+    function announce(s) {
+      if (now) now.textContent = String(s + 1);
+      const cap = document.querySelector(`.caption[data-stage="${s}"]`);
+      if (live && cap) {
+        const h = cap.querySelector("h1, h2");
+        live.textContent = `Stage ${s + 1} of ${stageCount}: ${h ? h.textContent.trim() : ""}`;
+      }
+    }
+
+    prev.addEventListener("click", () => goTo(stageOf(scrollTarget) - 1));
+    next.addEventListener("click", () => goTo(stageOf(scrollTarget) + 1));
+
+    // arrows / PageUp / PageDown once anything in the scene region has focus
+    section.addEventListener("keydown", (e) => {
+      const back = ["ArrowLeft", "ArrowUp", "PageUp"];
+      const fwd = ["ArrowRight", "ArrowDown", "PageDown"];
+      if (!back.includes(e.key) && !fwd.includes(e.key)) return;
+      e.preventDefault();
+      goTo(stageOf(scrollTarget) + (fwd.includes(e.key) ? 1 : -1));
+    });
+
+    canvas.tabIndex = 0;
+    announce(0);
+    // keep the readout honest when the user scrolls instead of stepping
+    let lastStage = 0;
+    ScrollTrigger.create({
+      trigger: section,
+      start: "top top",
+      end: "bottom bottom",
+      onUpdate: (self) => {
+        const s = stageOf(self.progress);
+        if (s !== lastStage) {
+          lastStage = s;
+          announce(s);
+        }
+      },
+    });
+  })();
+
   new IntersectionObserver(
     ([entry]) => {
       canvasVisible = entry.isIntersecting;

@@ -27,6 +27,7 @@
     />
   </head>
   <body>
+    <a class="skip-link" href="#concept">Skip to content</a>
     <div class="aurora" aria-hidden="true"></div>
     <div class="dotgrid" id="dotgrid" aria-hidden="true"></div>
     <!-- Telemetry HUD -->
@@ -143,6 +144,14 @@
             <p>Mirrored CW/CCW pairs — front-left and rear-right spin one way, front-right and rear-left the other.</p>
           </div>
         </div>
+        <!-- The exploded view is otherwise reachable only by scrolling. These
+             step through the same seven stages from the keyboard. -->
+        <div class="stage-nav" role="group" aria-label="Disassembly stages">
+          <button type="button" id="stage-prev" aria-label="Previous stage">←</button>
+          <span class="stage-nav-count"><span id="stage-now">1</span> / 7</span>
+          <button type="button" id="stage-next" aria-label="Next stage">→</button>
+        </div>
+        <p class="sr-only" aria-live="polite" id="stage-live"></p>
         <span class="scroll-cue" aria-hidden="true"></span>
       </div>
     </section>

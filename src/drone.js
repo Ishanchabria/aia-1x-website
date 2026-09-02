@@ -385,7 +385,7 @@ export function createDrone(maxAnisotropy = 1) {
     accentTrim: new THREE.MeshStandardMaterial({
       color: 0x0a1020,
       emissive: COLOR.accentGlow,
-      emissiveIntensity: 1.4,
+      emissiveIntensity: 2.2,
       roughness: 0.4,
       metalness: 0,
     }),
@@ -409,7 +409,7 @@ export function createDrone(maxAnisotropy = 1) {
       envMapIntensity: 0.45,
     }),
     pcbBlack: new THREE.MeshStandardMaterial({ color: COLOR.pcbBlack, metalness: 0, roughness: 0.7, roughnessMap: microNoise }),
-    shield: new THREE.MeshStandardMaterial({ color: COLOR.shield, metalness: 0.95, roughness: 0.42, envMapIntensity: 0.6 }),
+    shield: new THREE.MeshStandardMaterial({ color: COLOR.shield, metalness: 0.95, roughness: 0.52, envMapIntensity: 0.32 }),
     usb: new THREE.MeshStandardMaterial({ color: COLOR.usb, metalness: 0.95, roughness: 0.32, envMapIntensity: 0.5 }),
     button: new THREE.MeshStandardMaterial({ color: COLOR.button, metalness: 0, roughness: 0.6 }),
     brass: new THREE.MeshStandardMaterial({ color: COLOR.brass, metalness: 1, roughness: 0.3 }),

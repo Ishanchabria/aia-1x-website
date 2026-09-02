@@ -7,7 +7,7 @@
   --bg-deep: #08080a;
   --bg-raised: #101014;
   --fg: #f4f2ee;
-  --fg-muted: rgba(244, 242, 238, 0.55);
+  --fg-muted: rgba(244, 242, 238, 0.72);
   --fg-faint: rgba(244, 242, 238, 0.18);
   --accent: #c25640;
   --accent-deep: #91170c;
@@ -144,6 +144,63 @@ body::after {
     -webkit-mask-image: none;
     mask-image: none;
   }
+}
+
+/* ------------------------- accessibility affordances ---------------------- */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: fixed;
+  top: 0.5rem; left: 0.5rem;
+  z-index: 100;
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  background: var(--bg-raised);
+  color: var(--fg);
+  font-size: 0.85rem;
+  text-decoration: none;
+  transform: translateY(-160%);
+  transition: transform 0.2s var(--ease);
+}
+
+.skip-link:focus-visible { transform: none; }
+
+/* keyboard route into the exploded view */
+.stage-nav {
+  position: absolute;
+  bottom: 2.2rem; right: 2.5rem;
+  z-index: 4;
+  display: flex; align-items: center; gap: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--fg-muted);
+}
+
+.stage-nav button {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--fg-faint);
+  background: rgba(8, 8, 10, 0.6);
+  backdrop-filter: blur(10px);
+  color: var(--fg);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.25s var(--ease), background 0.25s var(--ease);
+}
+
+.stage-nav button:hover { border-color: var(--accent); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 /* ---------------------------------- type --------------------------------- */
