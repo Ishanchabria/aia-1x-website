@@ -177,11 +177,11 @@ export function initScene() {
   // thin accent ring encircling the drone on the floor (lives in the 3D scene,
   // so it follows the COOL rule)
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(96, 97.5, 256),
+    new THREE.RingGeometry(60, 61.1, 256),
     new THREE.MeshBasicMaterial({
       color: 0x3d7dff,
       transparent: true,
-      opacity: 0.15,
+      opacity: 0.1,
       side: THREE.DoubleSide,
       depthWrite: false,
       polygonOffset: true,
@@ -382,13 +382,14 @@ export function initScene() {
 
     // writes the BASE camera position only — parallax is layered on in render()
     const camAngle = progress * Math.PI * 0.7;
-    const radius = 260 + progress * 220;
+    const radius = 196 + progress * 250;
     baseCameraPos.set(
       Math.sin(camAngle) * radius,
-      55 + progress * 140,
+      34 + progress * 150,
       Math.cos(camAngle) * radius
     );
-    lookTarget.set(0, 25 + progress * 15, 0);
+    // aim lower so the drone lifts in frame and its feet clear the bottom edge
+    lookTarget.set(0, 11 + progress * 20, 0);
 
     // Captions: fade in/out within each stage window
     captions.forEach((el) => {

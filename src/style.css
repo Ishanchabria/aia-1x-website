@@ -74,7 +74,9 @@ h3 {
 }
 
 h1 {
-  font-size: clamp(3rem, 7vw, 6rem);
+  /* the object is the hero; the type supports it */
+  font-size: clamp(2.25rem, 4.2vw, 3.75rem);
+  line-height: 0.95;
 }
 
 p {
@@ -321,7 +323,7 @@ html[data-gl="fallback"] #drone-canvas {
 
 .caption-hero {
   top: 50%;
-  width: min(46vw, 620px);
+  width: min(40vw, 460px);
 }
 
 .cta-row {
