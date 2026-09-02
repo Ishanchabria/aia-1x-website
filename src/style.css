@@ -23,15 +23,20 @@
   box-sizing: border-box;
 }
 
+/* The page background belongs to html and ONLY to html. Give body an opaque
+   background as well and it paints in step 3 of the painting order, which is
+   after every negative z-index layer — that is exactly what kept the studio
+   pool, the aurora and the dot grid invisible from the day they were written.
+   Adding `background` to body will silently delete all three again. */
 html {
   scroll-behavior: smooth;
+  background: var(--bg-deep);
 }
 
 html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--bg-deep);
   color: var(--fg-muted);
   font-family: var(--font-body);
   overflow-x: clip;

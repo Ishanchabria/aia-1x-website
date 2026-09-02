@@ -26,9 +26,12 @@ blue motor lamps. What follows is everything genuinely left.
 
       Worth doing on desktop and phone. `?fps` works on the live site and on
       `npm run dev` alike.
-- [ ] **The aurora, dot grid and shine borders are unreviewed by me.** They are
-      DOM layers and only the WebGL canvas is capturable here. Deployed for you
-      to judge.
+- [ ] **Look at the hero now.** The aurora, the dot grid and the studio pool
+      behind them were never rendering — `body` carried an opaque background
+      that painted over all three. Fixed, and I have now seen them, but the
+      page you judged as "looking good" was missing its entire background
+      treatment, so it is worth a fresh opinion. Particularly whether the
+      aurora is too strong at the top of the page.
 - [ ] **Mobile layout**, still written blind.
 - [ ] **Safari.** `@property`, `MeshPhysicalMaterial` transmission and
       `backdrop-filter` are all risk areas. The shine border has a deliberate
@@ -71,6 +74,13 @@ blue motor lamps. What follows is everything genuinely left.
 
 ## Done since the last update
 
+- **The background layers were invisible and had always been.** `html, body`
+  shared one opaque `background`, and body's paints in step 3 of the CSS
+  painting order — after every negative z-index layer. That buried the studio
+  pool (`body::before`, z-index -3), the aurora (-2) and the dot grid (-1).
+  The background now lives on `html` alone. Worst-case contrast over the
+  brightest part of the aurora is 7.9:1 for muted body text, so nothing
+  regressed on the accessibility side.
 - Three deprecation warnings cleared: `RGBELoader` to `HDRLoader`, `THREE.Clock`
   to a direct `performance.now()` delta, `PCFSoftShadowMap` to `VSMShadowMap`.
   Console is clean.
