@@ -299,9 +299,17 @@ export function initScene() {
   // --- render on demand -------------------------------------------------
   // Now that the props no longer turn on their own, nothing animates
   // continuously except the environment rotation and settling. Anything that
-  // changes the image calls invalidate(); when nothing is settling and the
-  // environment is static, this idles at zero frames instead of burning a
-  // full-rate loop on an unchanging picture.
+  // changes the image calls invalidate().
+  //
+  // The environment drift is the catch: it never stops, so on desktop it used
+  // to defeat this gate entirely and the page rendered at full display rate
+  // forever. At 0.02 rad/s it does not need a frame every 7ms on a 144Hz
+  // panel, so env-only frames are throttled to ~24fps. The drift itself is
+  // unchanged — the elapsed time is banked and applied whole on the frames
+  // that do render, so the speed does not depend on the frame rate.
+  const ENV_IDLE_INTERVAL = 1 / 24;
+  let envIdleAccum = 0;
+  let envDt = 0;
   let needsRender = true;
   // Counts frames actually pushed through the composer, which is the only
   // number worth reporting: rAF ticks at display rate whether or not the
@@ -324,8 +332,16 @@ export function initScene() {
       (Math.abs(pointer.x - parallax.x) > 0.001 || Math.abs(pointer.y - parallax.y) > 0.001);
     const settlingProps = spinners.some((p) => Math.abs(p.angle - p.lastAngle) > 0.0005);
 
-    if (!needsRender && !settlingScroll && !settlingParallax && !settlingProps && !envRotates) {
-      return;
+    envDt += dt;
+
+    const busy = needsRender || settlingScroll || settlingParallax || settlingProps;
+    if (!busy) {
+      if (!envRotates) return;
+      envIdleAccum += dt;
+      if (envIdleAccum < ENV_IDLE_INTERVAL) return;
+      envIdleAccum = 0;
+    } else {
+      envIdleAccum = 0;
     }
     needsRender = false;
 
@@ -368,7 +384,9 @@ export function initScene() {
     );
     camera.lookAt(lookTarget);
     // drifting reflections across the gunmetal — the strongest "real object" cue
-    if (!reducedMotion && !isMobile) scene.environmentRotation.y += 0.02 * dt;
+    // envDt, not dt: this frame may be standing in for several skipped ones
+    if (envRotates) scene.environmentRotation.y += 0.02 * envDt;
+    envDt = 0;
 
     composer.render();
     drawCount++;

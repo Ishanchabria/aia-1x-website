@@ -74,6 +74,20 @@ blue motor lamps. What follows is everything genuinely left.
 
 ## Done since the last update
 
+- **Draw calls cut 32%, 876 to 596 per frame**, triangles 124k to 83k. One
+  material was responsible: the amber diode glass used real `transmission`,
+  which makes three.js render the entire opaque scene a second time into a
+  transmission buffer every frame. 280 draw calls for four 4mm cylinders that
+  are half-buried in the airframe. Clearcoat over a translucent body is the
+  same picture — compared crops side by side — for one draw call. Median frame
+  time on this machine went 17-22.5ms to 10.9ms.
+- **The page never actually idled.** The render-on-demand gate had an
+  `|| envRotates` term that is true on every desktop, so the early return
+  never fired and the scene redrew at full display rate forever. Env-only
+  frames are now throttled to ~24fps, with elapsed time banked so the drift
+  speed is unchanged (verified identical at 60/144/240Hz). Idle draws drop 6x
+  at 144Hz and 10x at 240Hz; scrolling still renders every frame.
+
 - **The background layers were invisible and had always been.** `html, body`
   shared one opaque `background`, and body's paints in step 3 of the CSS
   painting order — after every negative z-index layer. That buried the studio

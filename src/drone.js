@@ -423,7 +423,21 @@ export function createDrone(maxAnisotropy = 1) {
     brass: new THREE.MeshStandardMaterial({ color: COLOR.brass, metalness: 1, roughness: 0.3 }),
     pcbBlue: new THREE.MeshStandardMaterial({ color: COLOR.pcbBlue, metalness: 0, roughness: 0.48, roughnessMap: microNoise }),
     chip: new THREE.MeshStandardMaterial({ color: COLOR.chip, metalness: 0, roughness: 0.62 }),
-    amberGlass: new THREE.MeshPhysicalMaterial({ color: COLOR.amber, roughness: 0.18, metalness: 0, transmission: 0.5, ior: 1.5, thickness: 1.2 }),
+    // Glassy WITHOUT transmission, and that is the whole point. Real
+    // transmission makes three.js render the entire opaque scene a second
+    // time into a transmission buffer every frame: measured at 280 extra draw
+    // calls, 32% of the total, to slightly deepen the amber on four 4mm
+    // cylinders that are half-buried in the airframe. Clearcoat over a
+    // translucent body is the same read for one draw call.
+    amberGlass: new THREE.MeshPhysicalMaterial({
+      color: COLOR.amber,
+      roughness: 0.16,
+      metalness: 0,
+      clearcoat: 1,
+      clearcoatRoughness: 0.08,
+      transparent: true,
+      opacity: 0.82,
+    }),
     veroboard: new THREE.MeshStandardMaterial({ color: COLOR.veroboard, metalness: 0, roughness: 0.78, roughnessMap: microNoise }),
     copper: new THREE.MeshStandardMaterial({ color: COLOR.copper, metalness: 0.9, roughness: 0.45 }),
     mosfetBody: new THREE.MeshStandardMaterial({ color: COLOR.mosfetBody, metalness: 0, roughness: 0.6 }),
