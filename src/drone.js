@@ -347,13 +347,17 @@ function wireMesh(from, to, color, radius = 0.5, sag = 3, seed = 0) {
     shrinkMaterial()
   );
   sleeve.position.copy(from);
-  sleeve.lookAt(to);
-  sleeve.rotateX(Math.PI / 2);
+  // Object3D.lookAt resolves in world space, but `to` is in the parent's local
+  // space — so the old lookAt(to) was aiming at the wrong point. Orient from
+  // the segment direction instead: same result, and independent of where this
+  // mesh ends up parented.
+  const axis = to.clone().sub(from).normalize();
+  sleeve.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis);
   group.add(sleeve);
   return group;
 }
 
-function makeDynamicWire(color, radius = 0.5, sag = 4) {
+function makeDynamicWire(color, radius = 0.5) {
   const mat = wireMaterial(color);
   const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(), new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, -2, 0)]), 16, radius, 6, false);
   return new THREE.Mesh(geo, mat);
@@ -395,7 +399,7 @@ export function createDrone(maxAnisotropy = 1) {
       roughness: 0.3,
       envMapIntensity: 1.15,
     }),
-    shaft: new THREE.MeshStandardMaterial({ color: COLOR.shaft, metalness: 1, roughness: 0.4 }),
+    shaft: new THREE.MeshStandardMaterial({ color: COLOR.shaft, metalness: 1, roughness: 0.58, envMapIntensity: 0.5 }),
     // glossy near-black: the highlight sweeping the blade twist is what sells it
     propBlack: new THREE.MeshPhysicalMaterial({
       // moulded plastic that catches a highlight, not polished lacquer. The
@@ -852,7 +856,7 @@ export function createDrone(maxAnisotropy = 1) {
     });
   });
 
-  return { group, parts, dynamicWires, stageCount: 7 };
+  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7 };
 }
 
 export function updateDynamicWires(dynamicWires) {

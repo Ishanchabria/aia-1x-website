@@ -101,6 +101,7 @@ export function initScene() {
       scene.environment = pmrem.fromEquirectangular(hdri).texture;
       prev?.dispose();
       hdri.dispose();
+      invalidate();
       sceneReady();
     },
     undefined,
@@ -193,7 +194,7 @@ export function initScene() {
   ring.position.y = -45.4;
   scene.add(ring);
 
-  const { group: drone, parts, dynamicWires, stageCount } = createDrone(
+  const { group: drone, parts, dynamicWires, textures, stageCount } = createDrone(
     renderer.capabilities.getMaxAnisotropy()
   );
   drone.traverse((obj) => {
@@ -215,7 +216,10 @@ export function initScene() {
     new THREE.Vector2(window.innerWidth, window.innerHeight),
     0.35, // strength — only speculars and the emissive trim should cross
     0.6, // radius
-    0.8 // threshold
+    // 0.88, not 0.80: the accent trim sits at ~1.04 luminance and still
+    // crosses, but the motor rim chamfers were sitting just above 0.80 and
+    // blooming into little blue lamps at the shaft tips
+    0.88 // threshold
   );
   composer.addPass(bloom);
   composer.addPass(new SMAAPass());
@@ -230,13 +234,14 @@ export function initScene() {
     composer.setSize(w, h);
     bloom.setSize(w, h);
   }
-  window.addEventListener("resize", resize);
+  window.addEventListener("resize", () => { resize(); invalidate(); });
 
   // Props spin continuously, but only once they've separated from the motors —
   // `spinT` is set by updateScene to how far along that part's explosion is.
   const spinners = parts.filter((p) => p.spin);
   spinners.forEach((p, i) => {
     p.angle = 0;
+    p.lastAngle = 0;
     // a phase offset per prop so the four never sit at identical angles
     p.phase = i * 0.55;
   });
@@ -268,16 +273,40 @@ export function initScene() {
       (e) => {
         pointer.x = e.clientX / window.innerWidth - 0.5;
         pointer.y = e.clientY / window.innerHeight - 0.5;
+      invalidate();
       },
       { passive: true }
     );
   }
+
+  // --- render on demand -------------------------------------------------
+  // Now that the props no longer turn on their own, nothing animates
+  // continuously except the environment rotation and settling. Anything that
+  // changes the image calls invalidate(); when nothing is settling and the
+  // environment is static, this idles at zero frames instead of burning a
+  // full-rate loop on an unchanging picture.
+  let needsRender = true;
+  const invalidate = () => {
+    needsRender = true;
+  };
+  const envRotates = !reducedMotion && !isMobile;
 
   function render() {
     requestAnimationFrame(render);
     if (!canvasVisible) return;
 
     const dt = Math.min(clock.getDelta(), 0.1);
+
+    const settlingScroll = Math.abs(scrollTarget - scrollCurrent) > 0.0001;
+    const settlingParallax =
+      parallaxEnabled &&
+      (Math.abs(pointer.x - parallax.x) > 0.001 || Math.abs(pointer.y - parallax.y) > 0.001);
+    const settlingProps = spinners.some((p) => Math.abs(p.angle - p.lastAngle) > 0.0005);
+
+    if (!needsRender && !settlingScroll && !settlingParallax && !settlingProps && !envRotates) {
+      return;
+    }
+    needsRender = false;
 
     // ease the scene toward the scroll target rather than snapping to it
     if (!reducedMotion && Math.abs(scrollTarget - scrollCurrent) > 0.0001) {
@@ -305,6 +334,7 @@ export function initScene() {
       // props keep turning a little as they lift away at the end
       const residual = Math.max(0, scrollCurrent - 0.85) * Math.PI * 1.6;
       const target = Math.sign(p.spin) * (scrollCurrent * PROP_SCROLL_K + residual) + p.phase;
+      p.lastAngle = p.angle;
       p.angle += (target - p.angle) * Math.min(1, dt * 3.2);
       p.mesh.rotation.y = p.angle;
     });
@@ -418,6 +448,7 @@ export function initScene() {
     scrub: 0.3,
     onUpdate: (self) => {
       scrollTarget = self.progress;
+      invalidate();
       if (reducedMotion) {
         scrollCurrent = scrollTarget;
         updateScene(scrollCurrent);
@@ -504,5 +535,25 @@ export function initScene() {
 
 
   render();
-  return { dispose: () => { renderer.dispose(); composer.dispose?.(); } };
+  return {
+    dispose() {
+      scene.traverse((o) => {
+        if (!o.isMesh) return;
+        o.geometry?.dispose();
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach((m) => {
+          if (!m) return;
+          Object.values(m).forEach((v) => {
+            if (v && v.isTexture) v.dispose();
+          });
+          m.dispose();
+        });
+      });
+      textures.forEach((t) => t.dispose());
+      scene.environment?.dispose();
+      pmrem.dispose();
+      composer.dispose?.();
+      renderer.dispose();
+    },
+  };
 }
