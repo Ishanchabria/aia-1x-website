@@ -112,6 +112,57 @@ function showFallback() {
 
 let scene = null;
 
+// --- ?fps readout ---------------------------------------------------------
+// Add ?fps to the URL for an on-page meter. This exists because framerate can
+// only honestly be measured on a real machine, and typing a URL is easier than
+// getting a paste past Chrome's console protection.
+//
+// Two numbers, because they mean different things. "draws" is frames the 3D
+// scene actually rendered — the page idles at zero on purpose when nothing has
+// changed, so a low draws figure while sitting still is correct, not a stall.
+// "worst" is the longest gap between animation frames in the last second; that
+// is the one that shows up as a stutter.
+function startFpsMeter(handle) {
+  const el = document.createElement("div");
+  el.className = "fpsmeter";
+  el.setAttribute("role", "status");
+  document.body.appendChild(el);
+
+  let frames = 0;
+  let worst = 0;
+  let last = performance.now();
+  let windowStart = last;
+  let lastDraws = handle?.drawsSoFar?.() ?? 0;
+  let sessionWorst = 0;
+
+  function tick(now) {
+    requestAnimationFrame(tick);
+    const gap = now - last;
+    last = now;
+    frames++;
+    if (gap > worst) worst = gap;
+
+    const elapsed = now - windowStart;
+    if (elapsed < 500) return;
+
+    const draws = handle?.drawsSoFar?.() ?? 0;
+    const rafFps = Math.round((frames * 1000) / elapsed);
+    const drawFps = Math.round(((draws - lastDraws) * 1000) / elapsed);
+    if (worst > sessionWorst) sessionWorst = worst;
+
+    el.textContent = `${rafFps} fps · ${drawFps} draws/s · worst ${worst.toFixed(
+      1
+    )}ms (peak ${sessionWorst.toFixed(1)}ms)`;
+    el.dataset.health = sessionWorst > 50 ? "bad" : sessionWorst > 22 ? "warn" : "ok";
+
+    frames = 0;
+    worst = 0;
+    windowStart = now;
+    lastDraws = draws;
+  }
+  requestAnimationFrame(tick);
+}
+
 async function start() {
   if (!supportsWebGL()) {
     showFallback();
@@ -121,6 +172,7 @@ async function start() {
     const { initScene } = await import("./scene.js");
     scene = initScene();
     setGLState("live");
+    if (new URLSearchParams(location.search).has("fps")) startFpsMeter(scene);
   } catch (err) {
     console.error("[AIA-1X] 3D scene failed to initialise", err);
     showFallback();

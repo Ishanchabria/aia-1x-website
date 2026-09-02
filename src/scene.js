@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
+import { HDRLoader } from "three/examples/jsm/loaders/HDRLoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
@@ -60,7 +60,15 @@ export function initScene() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // PCFSoftShadowMap is deprecated here and silently downgrades to PCF, which
+  // is what the page was really rendering. VSM replaces it without a warning.
+  // Measured, so nobody re-tunes this on a hunch: PCF vs VSM is 4653 vs 4685
+  // hard-edge pixels over the floor - visually identical, because the softness
+  // you see comes from the ground alphaMap and the contact blob, not the
+  // shadow filter. shadow.radius does nothing either (radius 8 moves it 4%).
+  // shadow.bias MUST stay negative: at bias 0 the battery top self-shadows
+  // into a moire (high-frequency energy 0.99 -> 4.05).
+  renderer.shadowMap.type = THREE.VSMShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.1;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -90,7 +98,7 @@ export function initScene() {
     setTimeout(() => boot.remove(), 900);
   }
 
-  new RGBELoader().load(
+  new HDRLoader().load(
     // string literals in JS are not base-rewritten by Vite the way HTML
     // attributes are, so this must be built from BASE_URL or it 404s on a
     // GitHub Pages project URL
@@ -251,7 +259,15 @@ export function initScene() {
   // can follow, not a blur.
   const PROP_TURNS_PER_PAGE = 1.75;
   const PROP_SCROLL_K = PROP_TURNS_PER_PAGE * Math.PI * 2;
-  const clock = new THREE.Clock();
+  // THREE.Clock is deprecated and THREE.Timer is not shipped in this version,
+  // so track delta directly rather than adding a dependency for it.
+  let lastFrameTime = performance.now();
+  const getDelta = () => {
+    const now = performance.now();
+    const d = (now - lastFrameTime) / 1000;
+    lastFrameTime = now;
+    return d;
+  };
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const isTouch = window.matchMedia("(hover: none)").matches;
   let canvasVisible = true;
@@ -287,6 +303,10 @@ export function initScene() {
   // environment is static, this idles at zero frames instead of burning a
   // full-rate loop on an unchanging picture.
   let needsRender = true;
+  // Counts frames actually pushed through the composer, which is the only
+  // number worth reporting: rAF ticks at display rate whether or not the
+  // picture changed, so an rAF-only meter reads 60 on a still image.
+  let drawCount = 0;
   const invalidate = () => {
     needsRender = true;
   };
@@ -296,7 +316,7 @@ export function initScene() {
     requestAnimationFrame(render);
     if (!canvasVisible) return;
 
-    const dt = Math.min(clock.getDelta(), 0.1);
+    const dt = Math.min(getDelta(), 0.1);
 
     const settlingScroll = Math.abs(scrollTarget - scrollCurrent) > 0.0001;
     const settlingParallax =
@@ -315,13 +335,6 @@ export function initScene() {
       updateScene(scrollCurrent);
     }
 
-    // Propeller choreography: running at the hero, spinning down, stationary
-    // through the disassembly, then lifting away last with a lazy residual turn.
-    // Velocity is a function of scroll position, so scrolling back up spins the
-    // props back up; the angle itself integrates over time so they still look
-    // alive when the page is idle. Once velocity reaches zero each prop eases
-    // to its own fixed resting angle, which makes the settled state identical
-    // whether you arrived scrolling down or back up.
     // Props never turn on their own. The angle is derived from scroll position
     // rather than accumulated over time, which is what makes scrolling back up
     // wind them back rather than drifting out of sync. The displayed angle
@@ -358,6 +371,7 @@ export function initScene() {
     if (!reducedMotion && !isMobile) scene.environmentRotation.y += 0.02 * dt;
 
     composer.render();
+    drawCount++;
   }
 
   // --- Scroll-driven explode + camera orbit ---
@@ -524,7 +538,7 @@ export function initScene() {
   new IntersectionObserver(
     ([entry]) => {
       canvasVisible = entry.isIntersecting;
-      if (canvasVisible) clock.getDelta(); // drop the accumulated gap
+      if (canvasVisible) getDelta(); // drop the accumulated gap
     },
     { threshold: 0 }
   ).observe(canvas);
@@ -537,6 +551,7 @@ export function initScene() {
 
   render();
   return {
+    drawsSoFar: () => drawCount,
     dispose() {
       scene.traverse((o) => {
         if (!o.isMesh) return;

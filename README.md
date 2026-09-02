@@ -34,6 +34,20 @@ cp .claude/launch.example.json .claude/launch.json
 | `public/parts/cut/` | Part photos with backgrounds removed. |
 | `public/hdr/` | Studio HDRI used for the environment map. |
 
+## Measuring performance
+
+Append `?fps` to any URL — dev server or the live site — for an on-page meter:
+
+```
+58 fps · 58 draws/s · worst 24.1ms (peak 31.7ms)
+```
+
+`draws/s` is frames the 3D scene actually rendered, which is not the same as
+`fps`. The page stops redrawing when nothing has changed, so `draws/s` falling
+to zero while you sit still is the render-on-demand loop working, not a stall.
+Judge it while scrolling. `worst` is the longest gap between frames — the
+number a stutter actually shows up in.
+
 ## Two palettes, kept separate
 
 This is the core art direction and the easiest thing to get wrong:

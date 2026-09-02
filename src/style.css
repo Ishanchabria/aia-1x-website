@@ -676,6 +676,43 @@ html[data-gl="fallback"] #drone-canvas {
   text-align: right;
 }
 
+/* Diagnostic meter, only present when the URL carries ?fps. Top-left so it
+   never sits over the HUD, and deliberately plain — it is an instrument, not
+   part of the design. Warm, like the rest of the DOM. */
+.fpsmeter {
+  position: fixed;
+  top: 5.5rem;
+  left: 2.5rem;
+  z-index: 90;
+  padding: 0.5rem 0.75rem;
+  background: rgba(8, 8, 10, 0.72);
+  backdrop-filter: blur(12px);
+  border-left: 2px solid var(--accent);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+  pointer-events: none;
+}
+
+.fpsmeter[data-health="warn"] {
+  border-left-color: #d8a24a;
+}
+
+.fpsmeter[data-health="bad"] {
+  border-left-color: var(--accent-deep);
+  color: var(--fg);
+}
+
+@media (max-width: 768px) {
+  .fpsmeter {
+    top: 4.5rem;
+    left: 1.25rem;
+    font-size: 0.6rem;
+  }
+}
+
 /* ---------------------------- static sections ---------------------------- */
 .section {
   position: relative;
