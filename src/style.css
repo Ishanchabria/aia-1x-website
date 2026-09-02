@@ -173,8 +173,16 @@ p {
   transition: height 0.15s linear;
 }
 
-/* ---------------------------- WebGL fallback ----------------------------- */
+/* ---------------------------- WebGL fallback -----------------------------
+   Canvas and fallback are mutually exclusive, driven by one state value on
+   <html>. Never use [hidden] alone here: an author `display` rule outranks the
+   UA stylesheet's [hidden]{display:none}, which is exactly how the fallback
+   ended up rendering on top of a working canvas in production. */
 .gl-fallback {
+  display: none;
+}
+
+html[data-gl="fallback"] .gl-fallback {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -185,6 +193,10 @@ p {
   gap: 1.5rem;
   padding: 2rem;
   text-align: center;
+}
+
+html[data-gl="fallback"] #drone-canvas {
+  display: none;
 }
 
 .gl-fallback img {

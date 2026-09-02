@@ -40,16 +40,20 @@ function supportsWebGL() {
 const canvas = document.getElementById("drone-canvas");
 const fallback = document.getElementById("gl-fallback");
 
-function showFallback() {
-  if (canvas) canvas.hidden = true;
-  if (fallback) {
-    // set from BASE_URL rather than trusting the literal in the HTML: Vite only
-    // rewrites public paths it can resolve at build time, and this image is
-    // generated later, so the literal would ship unprefixed and 404 on Pages
+// Single source of truth: 'live' | 'fallback'. CSS keys off this, so the canvas
+// and the fallback can never both be visible.
+function setGLState(state) {
+  document.documentElement.dataset.gl = state;
+  if (state === "fallback" && fallback) {
+    // set from BASE_URL rather than a literal: Vite only rewrites public paths
+    // it can resolve at build time, and this image is generated later
     const img = fallback.querySelector("img");
-    if (img) img.src = `${import.meta.env.BASE_URL}drone-fallback.webp`;
-    fallback.hidden = false;
+    if (img && !img.src) img.src = `${import.meta.env.BASE_URL}drone-fallback.webp`;
   }
+}
+
+function showFallback() {
+  setGLState("fallback");
   // the boot overlay must never strand the page behind a black screen
   document.documentElement.classList.add("is-ready");
   const boot = document.getElementById("boot");
@@ -69,6 +73,7 @@ async function start() {
   try {
     const { initScene } = await import("./scene.js");
     scene = initScene();
+    setGLState("live");
   } catch (err) {
     console.error("[AIA-1X] 3D scene failed to initialise", err);
     showFallback();
@@ -85,8 +90,7 @@ canvas?.addEventListener("webglcontextlost", (e) => {
 });
 
 canvas?.addEventListener("webglcontextrestored", () => {
-  if (fallback) fallback.hidden = true;
-  if (canvas) canvas.hidden = false;
+  setGLState("live");
   start();
 });
 
