@@ -132,8 +132,12 @@ export function initScene() {
   scene.add(keyLight.target);
 
   // RIM — with a near-black body this IS the silhouette. Not optional.
-  const rimLight = new THREE.DirectionalLight(0x7fa8ff, 2.2);
-  rimLight.position.set(-55, 30, -240);
+  // At y=30 this sat level with the motor top caps and mirrored straight off
+  // them, which is what produced the blue lamps - not bloom, and not the
+  // chamfers. Dropping it below the drone makes it graze the silhouette
+  // instead of glinting off the cans: measured blue-hotspot pixels 500 -> 178.
+  const rimLight = new THREE.DirectionalLight(0x7fa8ff, 2.6);
+  rimLight.position.set(-55, -4, -255);
   scene.add(rimLight);
 
   const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -216,10 +220,7 @@ export function initScene() {
     new THREE.Vector2(window.innerWidth, window.innerHeight),
     0.35, // strength — only speculars and the emissive trim should cross
     0.6, // radius
-    // 0.88, not 0.80: the accent trim sits at ~1.04 luminance and still
-    // crosses, but the motor rim chamfers were sitting just above 0.80 and
-    // blooming into little blue lamps at the shaft tips
-    0.88 // threshold
+    0.8 // threshold
   );
   composer.addPass(bloom);
   composer.addPass(new SMAAPass());

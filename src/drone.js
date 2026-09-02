@@ -396,8 +396,12 @@ export function createDrone(maxAnisotropy = 1) {
     gunmetal: new THREE.MeshStandardMaterial({
       color: COLOR.gunmetal,
       metalness: 1,
-      roughness: 0.3,
-      envMapIntensity: 1.15,
+      // At roughness 0.30 / env 1.15 the can mirrored the HDRI softbox down to
+      // a clipped point, which bloom then turned into a small lamp at the motor
+      // top. Spreading the reflection keeps the motors the brightest metal in
+      // the scene without saturating: 65 clipped pixels -> 0, peak 253.6 -> 249.9.
+      roughness: 0.42,
+      envMapIntensity: 0.85,
     }),
     shaft: new THREE.MeshStandardMaterial({ color: COLOR.shaft, metalness: 1, roughness: 0.58, envMapIntensity: 0.5 }),
     // glossy near-black: the highlight sweeping the blade twist is what sells it
