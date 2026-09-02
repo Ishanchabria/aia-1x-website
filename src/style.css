@@ -44,9 +44,60 @@ body::before {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: -2;
+  z-index: -3;
   background:
-    radial-gradient(120vh 90vh at 50% 38%, #1a1a20 0%, #101014 45%, var(--bg-deep) 78%);
+    radial-gradient(120vh 90vh at 50% 38%, #131318 0%, #0c0c10 45%, var(--bg-deep) 78%);
+}
+
+/* ---------------------------------- aurora --------------------------------
+   Violet/indigo forms bleeding in from the left and right edges, cut off by
+   the viewport so they never read as circles. The centre stays darkest so the
+   drone's silhouette is framed rather than washed out.
+
+   One element carrying every blob in a single background shorthand, blurred
+   once. Several separately-blurred elements is the same picture at several
+   times the GPU cost. */
+.aurora {
+  position: fixed;
+  inset: -20%;
+  z-index: -2;
+  pointer-events: none;
+  filter: blur(120px);
+  will-change: transform;
+  background:
+    radial-gradient(38vw 46vh at 4% 30%, rgba(109, 61, 245, 0.3) 0%, transparent 70%),
+    radial-gradient(42vw 40vh at 97% 62%, rgba(59, 61, 245, 0.22) 0%, transparent 70%),
+    radial-gradient(30vw 34vh at 88% 12%, rgba(160, 61, 245, 0.14) 0%, transparent 72%),
+    radial-gradient(34vw 38vh at 10% 88%, rgba(109, 61, 245, 0.16) 0%, transparent 72%);
+  animation: auroraDrift 52s var(--ease) infinite alternate;
+}
+
+/* second, slower layer offset in phase so the two never sync */
+.aurora::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(36vw 42vh at 0% 70%, rgba(59, 61, 245, 0.18) 0%, transparent 70%),
+    radial-gradient(32vw 36vh at 100% 26%, rgba(160, 61, 245, 0.12) 0%, transparent 72%);
+  animation: auroraDrift2 67s var(--ease) infinite alternate;
+}
+
+@keyframes auroraDrift {
+  from { transform: translate3d(-2%, -1%, 0) scale(1); }
+  to   { transform: translate3d(3%, 2%, 0) scale(1.12); }
+}
+
+@keyframes auroraDrift2 {
+  from { transform: translate3d(2%, 2%, 0) scale(1.08); }
+  to   { transform: translate3d(-3%, -2%, 0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora,
+  .aurora::after {
+    animation: none;
+  }
 }
 
 /* Grain. Large dark gradients band badly on 8-bit displays; this hides it
@@ -59,6 +110,40 @@ body::after {
   pointer-events: none;
   opacity: 0.03;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* -------------------------------- dot grid -------------------------------
+   Fine dot matrix that clears in a soft circle around the cursor, revealing
+   the aurora and the black beneath. Sits above the aurora but BELOW the canvas
+   (z-index -1 vs the canvas at 1), so the drone never has dots on it. */
+.dotgrid {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  --mx: 50%;
+  --my: 40%;
+  background-image: radial-gradient(circle, rgba(190, 180, 255, 0.16) 1px, transparent 1px);
+  background-size: 22px 22px;
+  /* transparent at the centre = dots masked away = hole. The 35%->100% ramp is
+     what feathers the edge instead of cutting a hard circle. */
+  -webkit-mask-image: radial-gradient(circle 180px at var(--mx) var(--my), transparent 0%, transparent 35%, #000 100%);
+  mask-image: radial-gradient(circle 180px at var(--mx) var(--my), transparent 0%, transparent 35%, #000 100%);
+}
+
+/* Inverted: dots BRIGHTEN around the cursor instead of clearing. Toggled from
+   JS via DOT_MASK_INVERT so both directions can be compared. */
+.dotgrid.is-inverted {
+  -webkit-mask-image: radial-gradient(circle 180px at var(--mx) var(--my), #000 0%, #000 35%, transparent 100%);
+  mask-image: radial-gradient(circle 180px at var(--mx) var(--my), #000 0%, #000 35%, transparent 100%);
+}
+
+/* no pointer to follow: show the plain field */
+@media (hover: none) {
+  .dotgrid {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
 }
 
 /* ---------------------------------- type --------------------------------- */
@@ -333,7 +418,17 @@ html[data-gl="fallback"] #drone-canvas {
   pointer-events: auto;
 }
 
+/* ------------------------- animated shine borders -------------------------
+   A travelling bright point riding a subdued 1px edge — warm coral through
+   cream, per the palette rule. The fill stays solid; only the edge shines. */
+@property --shine-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
 .cta {
+  position: relative;
   display: inline-flex;
   align-items: center;
   padding: 0.8rem 1.9rem;
@@ -343,6 +438,99 @@ html[data-gl="fallback"] #drone-canvas {
   text-decoration: none;
   transition: transform 0.3s var(--ease), background 0.3s var(--ease),
     border-color 0.3s var(--ease);
+}
+
+/* Fallback path first: a translating linear sheen. If @property and
+   conic-gradient are both supported, the rule below replaces it. Safari is the
+   known risk here, and the button must never lose its border. */
+.cta::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    100deg,
+    rgba(244, 242, 238, 0.1) 0%,
+    rgba(224, 104, 74, 0.85) 45%,
+    rgba(250, 225, 195, 0.95) 52%,
+    rgba(244, 242, 238, 0.1) 100%
+  );
+  background-size: 260% 100%;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: shineSweep 4s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes shineSweep {
+  from { background-position: 180% 0; }
+  to   { background-position: -80% 0; }
+}
+
+@supports (background: conic-gradient(from 0deg, red, blue)) {
+  .cta::before {
+    background: conic-gradient(
+      from var(--shine-angle),
+      rgba(244, 242, 238, 0.08) 0deg,
+      rgba(224, 104, 74, 0.9) 60deg,
+      rgba(250, 225, 195, 1) 90deg,
+      rgba(224, 104, 74, 0.5) 130deg,
+      rgba(244, 242, 238, 0.08) 220deg,
+      rgba(244, 242, 238, 0.08) 360deg
+    );
+    animation: shineSpin 4s linear infinite;
+  }
+
+  @keyframes shineSpin {
+    to { --shine-angle: 360deg; }
+  }
+}
+
+.cta:hover::before {
+  animation-duration: 2.2s;
+  filter: brightness(1.35);
+}
+
+.topnav-links a,
+.topnav-action {
+  position: relative;
+}
+
+.topnav-links a::after,
+.topnav-action::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(224, 104, 74, 0.9),
+    rgba(250, 225, 195, 1),
+    transparent
+  );
+  background-size: 220% 100%;
+  opacity: 0;
+  transition: opacity 0.25s var(--ease);
+}
+
+.topnav-links a:hover::after,
+.topnav-action:hover::after {
+  opacity: 1;
+  animation: shineSweep 2.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cta::before,
+  .topnav-links a::after,
+  .topnav-action::after {
+    animation: none;
+  }
 }
 
 .cta-solid {
