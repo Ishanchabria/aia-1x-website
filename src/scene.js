@@ -235,6 +235,25 @@ export function initScene() {
   // Props spin continuously, but only once they've separated from the motors —
   // `spinT` is set by updateScene to how far along that part's explosion is.
   const spinners = parts.filter((p) => p.spin);
+  spinners.forEach((p, i) => {
+    p.angle = 0;
+    p.restAngle = i * 0.55; // staggered so the settled props aren't identical
+    p.mesh.children.forEach((c) => {
+      if (c.userData.isBlur) c.userData.baseOpacity = c.children[0].material.opacity;
+    });
+  });
+
+  const PROP_MAX_RAD_S = 26; // fast enough to smear into a disc with the ghosts
+
+  // Normalised 0..1 angular velocity across the scroll. Exponential decay
+  // through the spin-down, because real rotating mass sheds speed fast then
+  // coasts — a linear ramp reads as braking, not as losing power.
+  function propVelocity(p) {
+    if (p < 0.15) return 1;
+    if (p < 0.35) return Math.exp(-4.5 * ((p - 0.15) / 0.2));
+    if (p < 0.85) return 0;
+    return 0.05; // lazy residual turn as they lift away
+  }
   const clock = new THREE.Clock();
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const isTouch = window.matchMedia("(hover: none)").matches;
@@ -275,14 +294,39 @@ export function initScene() {
       updateScene(scrollCurrent);
     }
 
+    // Propeller choreography: running at the hero, spinning down, stationary
+    // through the disassembly, then lifting away last with a lazy residual turn.
+    // Velocity is a function of scroll position, so scrolling back up spins the
+    // props back up; the angle itself integrates over time so they still look
+    // alive when the page is idle. Once velocity reaches zero each prop eases
+    // to its own fixed resting angle, which makes the settled state identical
+    // whether you arrived scrolling down or back up.
+    const vNorm = reducedMotion ? 0 : propVelocity(scrollCurrent);
     spinners.forEach((p) => {
-      if (p.spinT) p.mesh.rotation.y += p.spin * p.spinT * dt;
-      // blur ghosts only exist while the blade is actually moving
-      const blurring = p.spinT > 0.12 && !reducedMotion;
+      if (vNorm > 0.001) {
+        p.angle = (p.angle ?? 0) + Math.sign(p.spin) * vNorm * PROP_MAX_RAD_S * dt;
+        p.mesh.rotation.y = p.angle;
+      } else if (!reducedMotion) {
+        // settle onto a stable per-prop angle so the four don't look identical
+        const target = p.restAngle;
+        p.angle = (p.angle ?? 0) + (target - (p.angle ?? 0)) * Math.min(1, dt * 4);
+        p.mesh.rotation.y = p.angle;
+      } else {
+        p.mesh.rotation.y = p.restAngle;
+      }
+
+      // ghosts read as motion blur only while it's genuinely moving
+      const blurring = vNorm > 0.12 && !reducedMotion;
       if (p.blurVisible !== blurring) {
         p.blurVisible = blurring;
         p.mesh.children.forEach((c) => {
           if (c.userData.isBlur) c.visible = blurring;
+        });
+      }
+      if (blurring) {
+        // ghosts fade in with speed rather than popping on
+        p.mesh.children.forEach((c) => {
+          if (c.userData.isBlur) c.children[0].material.opacity = c.userData.baseOpacity * vNorm;
         });
       }
     });
