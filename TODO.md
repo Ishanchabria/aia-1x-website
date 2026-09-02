@@ -11,15 +11,15 @@ work order is done except the items below.
 
 - [ ] **Framerate never measured.** rAF is throttled in this environment, so any
       number produced here would be fiction. Needs a real browser, desktop and
-      mobile. Ask for a  readout if that would help.
+      mobile. Ask for a `?fps` readout if that would help.
 - [ ] **Aurora, dot grid and shine borders are unreviewed by me.** They are DOM
       layers and only the WebGL canvas is capturable here. Deployed for you to
       judge.
-- [ ] **DOT_MASK_INVERT** in  — currently false (dots clear around
-      the cursor). Flip to true to brighten instead. One line.
+- [ ] **`DOT_MASK_INVERT`** in `src/main.js` — currently `false` (dots clear
+      around the cursor). Flip to `true` to brighten instead. One line.
 - [ ] Mobile layout, still written blind.
-- [ ] Safari: ,  transmission and
-       are all risk areas. The shine border has a documented
+- [ ] Safari: `@property`, `MeshPhysicalMaterial` transmission and
+      `backdrop-filter` are all risk areas. The shine border has a documented
       fallback path but it is untested on Safari.
 
 ## Known artifact
@@ -28,27 +28,33 @@ work order is done except the items below.
       light, visible on the right-hand motors. Raising shaft roughness and
       lifting the bloom threshold to 0.88 both failed to remove it, so it is a
       strong specular well above threshold rather than a marginal one. Likely
-      needs the rim light angle changed or those chamfer tori given their own
-      lower envMapIntensity.
+      needs the rim light angle changed, or those chamfer tori given their own
+      lower `envMapIntensity`.
 
 ## Deliberate, not oversights
 
 - Header pins and MOSFET legs stay sharp; rounding ~120 sub-mm parts costs
-  triangles for edges that never resolve.
--  0.32 rather than 0.9 — measured: the bright studio
-  HDRI was supplying ~58% of scene light and flattening the key pool.
+  triangles for edges that never resolve on screen.
+- `environmentIntensity` 0.32 rather than 0.9 — measured: the bright studio
+  HDRI was supplying ~58% of all scene light and flattening the key pool.
 - Perfboard holes, traces and silkscreen are textures, not geometry. Maps are
   now ~3x resolution with max anisotropy; still fake up close.
-- Procedural geometry rather than a Blender .glb.
+- Procedural geometry rather than a Blender `.glb`.
+- Two of the eight photo cutouts (MPU6050, frame-kit) keep interior white
+  regions that are genuinely holes in the physical part, so they read as white
+  discs. Correct for an edge-connected fill, not a failure.
 
 ## Low priority
 
 - [ ] Scene chunk 793KB (243KB gzipped), essentially three.js. Entry is 3.8KB.
-- [ ] HDRI 1.6MB. Async behind the RoomEnvironment fallback so it never blocks,
-      but it is the largest asset. No HDR tooling here to downsample it.
-- [ ]  and the  middleware are committed. Both are
-      DEV-gated and stripped from production builds, but they are in the source.
-- [ ] Part photos have lazy loading but no .
-- [ ] No battery photo was ever supplied; modelled from spec only.
+- [ ] HDRI 1.6MB. Async behind the RoomEnvironment fallback so it never blocks
+      first paint, but it is the largest asset. No HDR tooling here to
+      downsample it, and Poly Haven does not serve a 512 variant at the
+      guessed path.
+- [ ] `window.__debug` and the `.shots` middleware are committed. Both are
+      DEV-gated and absent from production builds, but they are in the source.
+- [ ] Part photos have lazy loading but no `srcset`.
+- [ ] No battery photo was ever supplied; the battery is modelled from spec only.
 - [ ] Deferred by the work order: light sweep, canvas film grain, depth of
-      field, dust motes. The aurora may have made these redundant.
+      field, dust motes. The aurora may have made these redundant — reassess
+      after seeing it.
