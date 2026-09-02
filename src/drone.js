@@ -295,14 +295,21 @@ function roundedPlate(w, h, depth, radius, bevel = 0.2) {
   return geo;
 }
 
-function pinRow(count, spacing, length, mat) {
+function pinRow(count, spacing, length, mat, solderMat) {
   const group = new THREE.Group();
   const geo = new THREE.BoxGeometry(0.5, length, 0.5);
+  // one shared cone reused as a solder fillet where each pin meets its pad
+  const filletGeo = solderMat ? new THREE.ConeGeometry(0.52, 0.55, 8) : null;
   const start = -((count - 1) * spacing) / 2;
   for (let i = 0; i < count; i++) {
     const pin = new THREE.Mesh(geo, mat);
     pin.position.set(start + i * spacing, -length / 2, 0);
     group.add(pin);
+    if (filletGeo) {
+      const s = new THREE.Mesh(filletGeo, solderMat);
+      s.position.set(start + i * spacing, 0.15, 0);
+      group.add(s);
+    }
   }
   return group;
 }
@@ -322,9 +329,28 @@ function wireMaterial(color) {
   return new THREE.MeshPhysicalMaterial({ color, metalness: 0, roughness: 0.55, clearcoat: 0.4 });
 }
 
+let _shrinkMat;
+function shrinkMaterial() {
+  if (!_shrinkMat) {
+    _shrinkMat = new THREE.MeshStandardMaterial({ color: 0x14171c, roughness: 0.72, metalness: 0 });
+  }
+  return _shrinkMat;
+}
+
 function wireMesh(from, to, color, radius = 0.5, sag = 3, seed = 0) {
-  const mesh = new THREE.Mesh(buildTubeGeometry(from, to, radius, sag, seed), wireMaterial(color));
-  return mesh;
+  // real silicone lead hangs slack; a taut line reads as a rod
+  const group = new THREE.Group();
+  group.add(new THREE.Mesh(buildTubeGeometry(from, to, radius, sag * 1.7, seed), wireMaterial(color)));
+  // heat-shrink sleeve at the soldered end
+  const sleeve = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 1.8, radius * 1.8, 1.6, 10),
+    shrinkMaterial()
+  );
+  sleeve.position.copy(from);
+  sleeve.lookAt(to);
+  sleeve.rotateX(Math.PI / 2);
+  group.add(sleeve);
+  return group;
 }
 
 function makeDynamicWire(color, radius = 0.5, sag = 4) {
@@ -396,6 +422,8 @@ export function createDrone(maxAnisotropy = 1) {
     foil: new THREE.MeshStandardMaterial({ color: COLOR.foil, metalness: 0.7, roughness: 0.45 }),
     jst: new THREE.MeshStandardMaterial({ color: COLOR.jst, metalness: 0.2, roughness: 0.55 }),
     zipTie: new THREE.MeshStandardMaterial({ color: COLOR.zipTie, metalness: 0, roughness: 0.65 }),
+    solder: new THREE.MeshStandardMaterial({ color: 0x9aa0a8, metalness: 0.85, roughness: 0.38 }),
+    shrink: new THREE.MeshStandardMaterial({ color: 0x14171c, metalness: 0, roughness: 0.7 }),
   };
 
   const espTopMat = new THREE.MeshStandardMaterial({ map: track(esp32Texture()), roughness: 0.65 });
@@ -464,6 +492,19 @@ export function createDrone(maxAnisotropy = 1) {
     tube.position.set(tip.x, 6, tip.z);
     frameGroup.add(tube);
 
+    // screw boss at the motor mount
+    const boss = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.9, 1.6, 12), mats.frame);
+    boss.position.set(tip.x * 0.88, 1.4, tip.z * 0.88);
+    frameGroup.add(boss);
+    const bossHole = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 1.8, 10), mats.chip);
+    bossHole.position.copy(boss.position);
+    frameGroup.add(bossHole);
+    // fillet where the arm meets the centre plate - moulded parts never have
+    // sharp internal corners
+    const fillet = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 4.6, 1.8, 14), mats.frame);
+    fillet.position.set(dir.x * (armRoot - 1), 1, dir.z * (armRoot - 1));
+    frameGroup.add(fillet);
+
     const nub = new THREE.Mesh(new THREE.ConeGeometry(2, 3, 10), mats.frame);
     nub.position.set(tip.x, -0.5, tip.z);
     nub.rotation.x = Math.PI;
@@ -476,6 +517,15 @@ export function createDrone(maxAnisotropy = 1) {
     zip.rotation.x = Math.PI / 2;
     zip.position.set(Math.cos(a) * plateRadial * 1.6, 1, Math.sin(a) * plateRadial * 1.6);
     frameGroup.add(zip);
+  });
+
+  [[10.5, 10.5], [10.5, -10.5], [-10.5, 10.5], [-10.5, -10.5]].forEach(([x, z]) => {
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.5, 1.2, 12), mats.frame);
+    b.position.set(x, 2, z);
+    frameGroup.add(b);
+    const h = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.4, 8), mats.chip);
+    h.position.set(x, 2.1, z);
+    frameGroup.add(h);
   });
 
   group.add(frameGroup);
@@ -504,9 +554,21 @@ export function createDrone(maxAnisotropy = 1) {
     seam.position.set(4.2, 10, 0);
     motor.add(seam);
 
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 5, 8), mats.shaft);
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 5, 12), mats.shaft);
     shaft.position.y = 22.5;
     motor.add(shaft);
+
+    // circlip groove at the shaft base
+    const circlip = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.09, 6, 16), mats.shaft);
+    circlip.rotation.x = Math.PI / 2;
+    circlip.position.y = 20.6;
+    motor.add(circlip);
+
+    // moulded grommet where the leads leave the can
+    const grommet = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.4, 1.2, 10), mats.zipTie);
+    grommet.rotation.x = Math.PI / 2;
+    grommet.position.set(0, 1.6, -4.1);
+    motor.add(grommet);
 
     for (let v = 0; v < 3; v++) {
       const a = (v / 3) * Math.PI * 2;
@@ -610,7 +672,7 @@ export function createDrone(maxAnisotropy = 1) {
   const mpuCap = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 2, 10), mats.amberGlass);
   mpuCap.position.set(-6, 2, 5);
   mpuGroup.add(mpuCap);
-  const mpuPins = pinRow(8, 1.7, 4, mats.brass);
+  const mpuPins = pinRow(8, 1.7, 4, mats.brass, mats.solder);
   mpuPins.position.set(-2, 1, -7.5);
   mpuGroup.add(mpuPins);
 
@@ -718,9 +780,9 @@ export function createDrone(maxAnisotropy = 1) {
     espGroup.add(btn);
   });
 
-  [[-5, -22], [7, -20], [10, -16]].forEach(([x, z], i) => {
-    const smd = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 2, 10), i === 2 ? mats.amberGlass : mats.shaft);
-    smd.position.set(x, 1.6 + 1, z);
+  [[-5, -22, 2.2], [7, -20, 1.4], [10, -16, 2.8]].forEach(([x, z, hgt], i) => {
+    const smd = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, hgt, 12), i === 2 ? mats.amberGlass : mats.shaft);
+    smd.position.set(x, 1.6 + hgt / 2, z);
     espGroup.add(smd);
   });
   [[-9, -12, 0xcc2b2b], [-9, -8, 0x2255aa]].forEach(([x, z, c]) => {
@@ -730,7 +792,7 @@ export function createDrone(maxAnisotropy = 1) {
   });
 
   [-13, 13].forEach((x) => {
-    const pins = pinRow(15, 3.2, 6, mats.brass);
+    const pins = pinRow(15, 3.2, 6, mats.brass, mats.solder);
     pins.rotation.y = Math.PI / 2;
     pins.position.set(x, 0, 0);
     espGroup.add(pins);
@@ -744,6 +806,18 @@ export function createDrone(maxAnisotropy = 1) {
   // ============================= BATTERY =============================
   const battGroup = new THREE.Group();
   const battBody = new THREE.Mesh(roundedPlate(40, 30, 5, 3), mats.foil);
+  {
+    // soft pillowing plus slight asymmetry - a perfect cuboid reads as plastic
+    const bp = battBody.geometry.attributes.position;
+    for (let i = 0; i < bp.count; i++) {
+      const x = bp.getX(i), y = bp.getY(i), z = bp.getZ(i);
+      const d = Math.min(1, Math.hypot(x / 20, z / 15));
+      const puff = Math.cos(d * Math.PI * 0.5) * 0.85;
+      bp.setY(i, y + (y > 2.5 ? puff : -puff * 0.45) + Math.sin(x * 0.4) * 0.06);
+    }
+    bp.needsUpdate = true;
+    battBody.geometry.computeVertexNormals();
+  }
   battGroup.add(battBody);
   const battTop = new THREE.Mesh(new THREE.PlaneGeometry(37, 27), battLabelMat);
   battTop.rotation.x = -Math.PI / 2;
