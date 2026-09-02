@@ -771,6 +771,13 @@ html[data-gl="fallback"] #drone-canvas {
   color: var(--fg-muted);
 }
 
+/* Stage status lives in one place: the data-status attribute on the <li>.
+   The visible label is derived from it, so updating a stage means changing a
+   single value rather than an attribute and a string that can disagree. */
+.stage-item[data-status="done"] .stage-status::after { content: "complete"; }
+.stage-item[data-status="progress"] .stage-status::after { content: "in progress"; }
+.stage-item[data-status="queued"] .stage-status::after { content: "queued"; }
+
 .stage-item[data-status="done"] .stage-status {
   color: var(--fg);
   border-color: var(--accent);

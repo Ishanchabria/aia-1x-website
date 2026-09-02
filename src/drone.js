@@ -80,7 +80,7 @@ function esp32Texture() {
     ctx.font = "bold 20px sans-serif";
     ctx.fillStyle = "rgba(255,255,255,0.7)";
     ctx.fillText("ESP32", w / 2 - 34, h - 14);
-  }, 128, 320);
+  }, 384, 960);
 }
 
 function mpuTexture() {
@@ -106,7 +106,7 @@ function mpuTexture() {
     ctx.moveTo(ax, ay - 22);
     ctx.lineTo(ax + 5, ay - 16);
     ctx.stroke();
-  }, 200, 150);
+  }, 600, 450);
 }
 
 // Low-amplitude surface variation. Breaks up the uniform "one plastic in
@@ -132,15 +132,15 @@ function perfboardTopTexture() {
     ctx.fillStyle = "#2a2c30";
     ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = "rgba(8,10,14,0.75)";
-    const step = 12;
+    const step = 36;
     for (let x = step / 2; x < w; x += step) {
       for (let y = step / 2; y < h; y += step) {
         ctx.beginPath();
-        ctx.arc(x, y, 1.6, 0, Math.PI * 2);
+        ctx.arc(x, y, 4.8, 0, Math.PI * 2);
         ctx.fill();
       }
     }
-  }, 256, 220);
+  }, 768, 660);
 }
 
 function perfboardBottomTexture() {
@@ -151,11 +151,11 @@ function perfboardBottomTexture() {
     ctx.lineWidth = 3;
     for (let y = 8; y < h; y += 14) {
       ctx.beginPath();
-      ctx.moveTo(4, y + ((y / 14) % 2) * 5);
-      ctx.lineTo(w - 4, y);
+      ctx.moveTo(12, y + ((y / 42) % 2) * 15);
+      ctx.lineTo(w - 12, y);
       ctx.stroke();
     }
-  }, 256, 220);
+  }, 768, 660);
 }
 
 function batteryLabelTexture() {
@@ -173,7 +173,7 @@ function batteryLabelTexture() {
     ctx.strokeStyle = "#3d7dff";
     ctx.lineWidth = 4;
     ctx.strokeRect(w * 0.08, h * 0.12, w * 0.84, h * 0.76);
-  }, 256, 192);
+  }, 768, 576);
 }
 
 // ---------------------------------------------------------------------------
