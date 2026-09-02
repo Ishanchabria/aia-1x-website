@@ -9,8 +9,8 @@ Written 2026-09-02, after the 3D realism + visual design pass.
 
 - [x] ~~Cursor parallax camera drift~~ — FIXED. Parallax is now a clamped
       offset off a stored base position, resolved absolutely each frame.
-- [ ] **No WebGL fallback.** If WebGL is unavailable or the context is lost, the
-      visitor gets an empty page. No detection, no message, no static image.
+- [ ] ~~No WebGL fallback~~ — DONE (detection, static image, context lost/restored).
+
 - [ ] Dead code: `allTextures` in `drone.js` is collected and never returned or
       used (was intended for disposal). `sag` param in `makeDynamicWire` unused.
 
@@ -19,11 +19,8 @@ Written 2026-09-02, after the 3D realism + visual design pass.
 - [ ] **Render-on-demand never implemented** (spec 1H explicitly: "do not run an
       unconditional full-rate rAF loop"). It still runs one. Pausing when
       offscreen is not the same thing.
-- [ ] **Blades have no real camber/twist.** Single fixed pitch rotation, not a
-      twist varying along the span. Spec called this out directly: without it
-      there is no highlight sweep for the glossy prop material to catch. Then
-      prop roughness went 0.16 -> 0.52 to kill a white-blade blowout, weakening
-      it further. Correct fix is a genuinely twisted blade, then restore gloss.
+- [ ] ~~Blades have no camber/twist~~ — DONE, lofted airfoil, gloss restored.
+
 - [ ] **No disposal/teardown.** Only the HDRI disposes.
 - [ ] Not every `BoxGeometry` became `RoundedBoxGeometry` — header pins and
       MOSFET legs left sharp on purpose (sub-mm edges never resolve on screen,
@@ -61,8 +58,8 @@ Written 2026-09-02, after the 3D realism + visual design pass.
 - [ ] Perfboard holes, copper traces, silkscreen, castellated pads are
       **textures, not geometry** — correct at distance, fake up close.
 - [ ] Silkscreen is generic, not real pin labels.
-- [ ] **Cream photo tiles (`#f2ebe0`) in the spec sheet glare against the
-      near-black page.** Predates this pass, never revisited.
+- [ ] ~~Cream photo tiles~~ — INVESTIGATED (item 8): real, loading fine, 80% down the page in the Spec Sheet. Awaiting your call.
+
 - [ ] Still procedural geometry, not the Blender `.glb` from the original plan.
 
 ## 5. Content / honesty
@@ -88,14 +85,12 @@ Written 2026-09-02, after the 3D realism + visual design pass.
 
 ## 7. Project / infrastructure
 
-- [ ] **GitHub Pages was never configured — the site is not deployed anywhere.**
-      Needs a build-and-deploy workflow, plus `base` set in `vite.config.js` for
-      a project-path URL.
-- [ ] Bundle ~700KB (190KB gzipped), no code splitting; chunk-size warning on
-      every build. HDRI adds 1.6MB.
+- [ ] ~~GitHub Pages~~ — LIVE at https://ishanchabria.github.io/aia-1x-website/
+
+- [x] ~~Bundle size~~ — entry chunk now 3.11KB; scene code-split behind a dynamic import. Scene chunk still ~790KB.
 - [ ] Part photos: no `srcset`, no lazy loading, full-size webp.
 - [ ] No meta description, Open Graph tags, or social preview image.
-- [ ] Still the default Vite favicon; `public/icons.svg` unused.
+- [x] ~~Favicon / meta / OG~~ — DONE.
 - [ ] `window.__debug` and the `.shots` capture middleware are committed
       (DEV-gated, but present in source).
 - [ ] `.claude/launch.json` is gitignored, so a fresh clone cannot preview via
