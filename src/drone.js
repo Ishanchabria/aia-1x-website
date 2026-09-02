@@ -398,12 +398,15 @@ export function createDrone(maxAnisotropy = 1) {
     shaft: new THREE.MeshStandardMaterial({ color: COLOR.shaft, metalness: 1, roughness: 0.4 }),
     // glossy near-black: the highlight sweeping the blade twist is what sells it
     propBlack: new THREE.MeshPhysicalMaterial({
+      // moulded plastic that catches a highlight, not polished lacquer. The
+      // sweep along the blade twist has to survive this — if it goes matte,
+      // the twist stops reading.
       color: COLOR.propBlack,
       metalness: 0,
-      roughness: 0.18,
-      clearcoat: 1,
-      clearcoatRoughness: 0.12,
-      envMapIntensity: 0.7,
+      roughness: 0.3,
+      clearcoat: 0.35,
+      clearcoatRoughness: 0.3,
+      envMapIntensity: 0.45,
     }),
     pcbBlack: new THREE.MeshStandardMaterial({ color: COLOR.pcbBlack, metalness: 0, roughness: 0.7, roughnessMap: microNoise }),
     shield: new THREE.MeshStandardMaterial({ color: COLOR.shield, metalness: 0.95, roughness: 0.42, envMapIntensity: 0.6 }),
@@ -624,21 +627,8 @@ export function createDrone(maxAnisotropy = 1) {
       bladePivot.add(blade);
       propGroup.add(bladePivot);
 
-      // Fake motion blur: trailing ghosts of each blade, rotationally offset
-      // and fading out. Hidden until the props are actually spinning.
-      [0.16, 0.32, 0.5].forEach((lag, gi) => {
-        const ghostMat = mats.propBlack.clone();
-        ghostMat.transparent = true;
-        ghostMat.opacity = 0.28 - gi * 0.08;
-        ghostMat.depthWrite = false;
-        const ghost = new THREE.Mesh(bladeGeo, ghostMat);
-        const ghostPivot = new THREE.Group();
-        ghostPivot.rotation.y = rot - spinSign * lag;
-        ghostPivot.add(ghost);
-        ghostPivot.visible = false;
-        ghostPivot.userData.isBlur = true;
-        propGroup.add(ghostPivot);
-      });
+      // No motion-blur ghosts: the props are now scroll-nudged rather than
+      // spun, and at that speed ghosting reads as smearing rather than motion.
     });
 
     propGroup.position.set(tip.x, 27, tip.z);

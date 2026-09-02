@@ -237,23 +237,14 @@ export function initScene() {
   const spinners = parts.filter((p) => p.spin);
   spinners.forEach((p, i) => {
     p.angle = 0;
-    p.restAngle = i * 0.55; // staggered so the settled props aren't identical
-    p.mesh.children.forEach((c) => {
-      if (c.userData.isBlur) c.userData.baseOpacity = c.children[0].material.opacity;
-    });
+    // a phase offset per prop so the four never sit at identical angles
+    p.phase = i * 0.55;
   });
 
-  const PROP_MAX_RAD_S = 26; // fast enough to smear into a disc with the ghosts
-
-  // Normalised 0..1 angular velocity across the scroll. Exponential decay
-  // through the spin-down, because real rotating mass sheds speed fast then
-  // coasts — a linear ramp reads as braking, not as losing power.
-  function propVelocity(p) {
-    if (p < 0.15) return 1;
-    if (p < 0.35) return Math.exp(-4.5 * ((p - 0.15) / 0.2));
-    if (p < 0.85) return 0;
-    return 0.05; // lazy residual turn as they lift away
-  }
+  // Roughly 1.75 revolutions across a full page scroll — a deliberate turn you
+  // can follow, not a blur.
+  const PROP_TURNS_PER_PAGE = 1.75;
+  const PROP_SCROLL_K = PROP_TURNS_PER_PAGE * Math.PI * 2;
   const clock = new THREE.Clock();
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const isTouch = window.matchMedia("(hover: none)").matches;
@@ -301,34 +292,21 @@ export function initScene() {
     // alive when the page is idle. Once velocity reaches zero each prop eases
     // to its own fixed resting angle, which makes the settled state identical
     // whether you arrived scrolling down or back up.
-    const vNorm = reducedMotion ? 0 : propVelocity(scrollCurrent);
+    // Props never turn on their own. The angle is derived from scroll position
+    // rather than accumulated over time, which is what makes scrolling back up
+    // wind them back rather than drifting out of sync. The displayed angle
+    // eases toward that target, so a sudden scroll stop coasts a fraction of a
+    // turn before settling — inertia, not freewheeling.
     spinners.forEach((p) => {
-      if (vNorm > 0.001) {
-        p.angle = (p.angle ?? 0) + Math.sign(p.spin) * vNorm * PROP_MAX_RAD_S * dt;
-        p.mesh.rotation.y = p.angle;
-      } else if (!reducedMotion) {
-        // settle onto a stable per-prop angle so the four don't look identical
-        const target = p.restAngle;
-        p.angle = (p.angle ?? 0) + (target - (p.angle ?? 0)) * Math.min(1, dt * 4);
-        p.mesh.rotation.y = p.angle;
-      } else {
-        p.mesh.rotation.y = p.restAngle;
+      if (reducedMotion) {
+        p.mesh.rotation.y = p.phase;
+        return;
       }
-
-      // ghosts read as motion blur only while it's genuinely moving
-      const blurring = vNorm > 0.12 && !reducedMotion;
-      if (p.blurVisible !== blurring) {
-        p.blurVisible = blurring;
-        p.mesh.children.forEach((c) => {
-          if (c.userData.isBlur) c.visible = blurring;
-        });
-      }
-      if (blurring) {
-        // ghosts fade in with speed rather than popping on
-        p.mesh.children.forEach((c) => {
-          if (c.userData.isBlur) c.children[0].material.opacity = c.userData.baseOpacity * vNorm;
-        });
-      }
+      // props keep turning a little as they lift away at the end
+      const residual = Math.max(0, scrollCurrent - 0.85) * Math.PI * 1.6;
+      const target = Math.sign(p.spin) * (scrollCurrent * PROP_SCROLL_K + residual) + p.phase;
+      p.angle += (target - p.angle) * Math.min(1, dt * 3.2);
+      p.mesh.rotation.y = p.angle;
     });
 
     // Cursor parallax. The scroll system owns the camera's base position; this is
