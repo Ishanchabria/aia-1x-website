@@ -2,34 +2,23 @@
 
 Live: https://ishanchabria.github.io/aia-1x-website/
 
-Updated 2026-09-02, after the visual direction overhaul. Everything from that
-work order is done except the items below.
+Updated 2026-09-02. The visual direction overhaul is complete, including the
+blue motor lamps. What follows is everything genuinely left.
 
 ---
 
-## Needs you (cannot be done from here)
+## Needs you — I cannot do these from here
 
-- [ ] **Framerate never measured.** rAF is throttled in this environment, so any
-      number produced here would be fiction. Needs a real browser, desktop and
-      mobile. Ask for a `?fps` readout if that would help.
-- [ ] **Aurora, dot grid and shine borders are unreviewed by me.** They are DOM
-      layers and only the WebGL canvas is capturable here. Deployed for you to
-      judge.
-- [ ] **`DOT_MASK_INVERT`** in `src/main.js` — currently `false` (dots clear
-      around the cursor). Flip to `true` to brighten instead. One line.
-- [ ] Mobile layout, still written blind.
-- [ ] Safari: `@property`, `MeshPhysicalMaterial` transmission and
-      `backdrop-filter` are all risk areas. The shine border has a documented
-      fallback path but it is untested on Safari.
-
-## Known artifact
-
-- [ ] **Motor top-rim chamfers bloom into small blue lamps** under the rim
-      light, visible on the right-hand motors. Raising shaft roughness and
-      lifting the bloom threshold to 0.88 both failed to remove it, so it is a
-      strong specular well above threshold rather than a marginal one. Likely
-      needs the rim light angle changed, or those chamfer tori given their own
-      lower `envMapIntensity`.
+- [ ] **Framerate has never been measured.** rAF is throttled in this
+      environment, so any number produced here would be invented. Needs a real
+      browser, desktop and mobile. Ask for a `?fps` readout if that helps.
+- [ ] **The aurora, dot grid and shine borders are unreviewed by me.** They are
+      DOM layers and only the WebGL canvas is capturable here. Deployed for you
+      to judge.
+- [ ] **Mobile layout**, still written blind.
+- [ ] **Safari.** `@property`, `MeshPhysicalMaterial` transmission and
+      `backdrop-filter` are all risk areas. The shine border has a deliberate
+      fallback path, but it is untested there.
 
 ## Deliberate, not oversights
 
@@ -38,23 +27,33 @@ work order is done except the items below.
 - `environmentIntensity` 0.32 rather than 0.9 — measured: the bright studio
   HDRI was supplying ~58% of all scene light and flattening the key pool.
 - Perfboard holes, traces and silkscreen are textures, not geometry. Maps are
-  now ~3x resolution with max anisotropy; still fake up close.
+  ~3x resolution with max anisotropy; still fake at very close range.
 - Procedural geometry rather than a Blender `.glb`.
 - Two of the eight photo cutouts (MPU6050, frame-kit) keep interior white
   regions that are genuinely holes in the physical part, so they read as white
-  discs. Correct for an edge-connected fill, not a failure.
+  discs. Correct behaviour for an edge-connected fill, not a failure.
+- `DOT_MASK_INVERT` is `false`: dots clear around the cursor. Flip it in
+  `src/main.js` to brighten instead.
 
 ## Low priority
 
-- [ ] Scene chunk 793KB (243KB gzipped), essentially three.js. Entry is 3.8KB.
+- [ ] Scene chunk 793KB (243KB gzipped), essentially three.js. Entry is 3.8KB,
+      so the shell paints immediately regardless.
 - [ ] HDRI 1.6MB. Async behind the RoomEnvironment fallback so it never blocks
       first paint, but it is the largest asset. No HDR tooling here to
-      downsample it, and Poly Haven does not serve a 512 variant at the
-      guessed path.
-- [ ] `window.__debug` and the `.shots` middleware are committed. Both are
-      DEV-gated and absent from production builds, but they are in the source.
-- [ ] Part photos have lazy loading but no `srcset`.
+      downsample it, and Poly Haven does not serve a 512 variant at the path I
+      tried.
 - [ ] No battery photo was ever supplied; the battery is modelled from spec only.
 - [ ] Deferred by the work order: light sweep, canvas film grain, depth of
-      field, dust motes. The aurora may have made these redundant — reassess
-      after seeing it.
+      field, dust motes. The aurora may have made these redundant — worth
+      reassessing now you can see it.
+
+## Done since the last update
+
+- Blue motor lamps — root cause was the rim light sitting level with the motor
+  top caps, not bloom and not the chamfers
+- `srcset` on the part photos, roughly halving bytes per tile
+- Verified `window.__debug` and the `.shots` middleware never reach production
+- Build-log status collapsed to a single source of truth
+- README added, covering setup, module layout, the two-palette rule and the
+  scroll model
