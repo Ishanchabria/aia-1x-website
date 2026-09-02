@@ -39,14 +39,25 @@ cp .claude/launch.example.json .claude/launch.json
 Append `?fps` to any URL — dev server or the live site — for an on-page meter:
 
 ```
-58 fps · 58 draws/s · worst 24.1ms (peak 31.7ms)
+75 fps · 20 draws/s · worst 13.4ms · peak 168ms @2.3s resize
 ```
 
-`draws/s` is frames the 3D scene actually rendered, which is not the same as
-`fps`. The page stops redrawing when nothing has changed, so `draws/s` falling
-to zero while you sit still is the render-on-demand loop working, not a stall.
-Judge it while scrolling. `worst` is the longest gap between frames — the
-number a stutter actually shows up in.
+- **fps** — animation frames per second, i.e. your display's refresh rate.
+- **draws/s** — frames the 3D scene actually rendered, which is not the same
+  thing. The page stops redrawing when nothing has changed; at rest only the
+  environment drift redraws, throttled to ~24fps, and on mobile not even that.
+  A small number while sitting still is the render-on-demand loop working.
+- **worst** — longest frame gap in the last window. Resets constantly, so read
+  it while moving.
+- **peak** — longest gap on a frame that actually drew, kept for the whole
+  visit, with a tag saying how far in it happened and whether a `resize`,
+  `pointer` move or the `load` coincided with it. Gaps over 500ms and anything
+  while the tab is hidden are discarded, so backgrounding the tab does not
+  poison the reading.
+
+Add `?plain` alongside it to strip the painted background layers — the aurora
+and its 120px blur, the dot grid's full-viewport mask, the grain. Comparing
+`?fps` against `?fps&plain` separates WebGL cost from CSS cost.
 
 ## Two palettes, kept separate
 

@@ -9,23 +9,22 @@ blue motor lamps. What follows is everything genuinely left.
 
 ## Needs you — I cannot do these from here
 
-- [ ] **Measure the framerate.** There is now an on-page meter: open
-      https://ishanchabria.github.io/aia-1x-website/?fps and scroll the whole
-      page. Nothing to paste into a console. It reads:
+- [ ] **Decide whether the load hitch is worth a design change.** Measured on
+      your hardware: the laptop freezes ~280ms once, right at load, and 107ms
+      of that is the painted background layers — almost entirely the aurora's
+      `blur(120px)` being rasterized for the first time. The phone does not
+      care (57ms vs 61ms with the layers off).
 
-      `58 fps · 58 draws/s · worst 24.1ms (peak 31.7ms)`
+      I did not change it. Cutting the blur to 48px makes the aurora visibly
+      stronger and more concentrated rather than diffuse, so it is an art
+      direction decision, not an optimization, and it is yours. Keeping the
+      softness at a lower blur means widening the gradients and dropping their
+      alpha — doable, but it is a re-tune of a look you have not judged yet.
 
-      - **fps** — animation frames per second. Should sit at your display's
-        refresh rate while scrolling.
-      - **draws/s** — frames the 3D scene actually rendered. This drops to 0
-        when you stop scrolling, and that is correct: the page deliberately
-        stops redrawing an unchanging picture. Only judge it while moving.
-      - **worst / peak** — longest gap between frames, in the last second and
-        for the whole visit. This is the number that shows up as a stutter.
-        Under ~22ms is smooth; the bar turns amber past that and red past 50ms.
+      My read: leave it. It is one-time, it lands inside the boot overlay, and
+      scrolling is clean. Say the word if you want the cheaper version built
+      so you can compare them.
 
-      Worth doing on desktop and phone. `?fps` works on the live site and on
-      `npm run dev` alike.
 - [ ] **Look at the hero now.** The aurora, the dot grid and the studio pool
       behind them were never rendering — `body` carried an opaque background
       that painted over all three. Fixed, and I have now seen them, but the
@@ -36,6 +35,19 @@ blue motor lamps. What follows is everything genuinely left.
 - [ ] **Safari.** `@property`, `MeshPhysicalMaterial` transmission and
       `backdrop-filter` are all risk areas. The shine border has a deliberate
       fallback path, but it is untested there.
+
+## Measured, and now closed
+
+- **Framerate is fine.** On your laptop and phone every worst-frame peak was
+  tagged `load` and happened within the first 0.6s. Scrolling never produced
+  the worst frame on either device, and the rolling worst frame during scroll
+  read 14.5ms (laptop, 75Hz) and 17ms (phone, 60Hz) — one clean frame each.
+- Ruled out along the way, each with a number rather than a guess: lazy shader
+  compilation (all 33 programs exist after the hero frame), PMREM generation
+  (8.3ms), full shader recompile (13.5ms against a 14.1ms steady frame), and
+  the resize handler (5-16ms including the frame after it).
+
+To re-measure any of this later, see the `?fps` section in the README.
 
 ## Deliberate, not oversights
 
