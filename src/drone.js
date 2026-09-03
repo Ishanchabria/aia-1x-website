@@ -4,6 +4,7 @@ import { buildEsp32 } from "./esp32.js";
 import { buildMotorAssets, buildMotor, twistedPair, resolveFinish, FINISHES } from "./motor.js";
 import { buildJumperSet } from "./jumper.js";
 import { buildVeroboard } from "./veroboard.js";
+import { buildResistors } from "./resistor.js";
 
 // Real edges catch a highlight; perfectly sharp ones read as CG. Radius is kept
 // small (a fabrication-scale edge break) and clamped so it can't collapse a
@@ -44,7 +45,6 @@ const COLOR = {
   mosfetBody: 0x101318,
   mosfetTab: 0x9aa3ad,
   leg: 0x8d95a0,
-  resistorBody: 0x585c62,
   foil: 0x4a505a,
   jst: 0x9aa3ad,
   zipTie: 0x0b0d11,
@@ -346,6 +346,7 @@ export function createDrone(maxAnisotropy = 1) {
   let veroTriangles = 0;
   let veroBoardTriangles = 0;
   let veroHoles = 0;
+  let resistorTriangles = 0;
   const motorFinish = resolveFinish();
   const motorAssets = buildMotorAssets(motorFinish, maxAnisotropy);
   allTextures.push(motorAssets.rough);
@@ -421,7 +422,6 @@ export function createDrone(maxAnisotropy = 1) {
     mosfetBody: new THREE.MeshStandardMaterial({ color: COLOR.mosfetBody, metalness: 0, roughness: 0.6 }),
     mosfetTab: new THREE.MeshStandardMaterial({ color: COLOR.mosfetTab, metalness: 0.95, roughness: 0.42, envMapIntensity: 0.6 }),
     leg: new THREE.MeshStandardMaterial({ color: COLOR.leg, metalness: 0.9, roughness: 0.38 }),
-    resistorBody: new THREE.MeshStandardMaterial({ color: COLOR.resistorBody, metalness: 0, roughness: 0.62 }),
     foil: new THREE.MeshStandardMaterial({ color: COLOR.foil, metalness: 0.7, roughness: 0.45 }),
     jst: new THREE.MeshStandardMaterial({ color: COLOR.jst, metalness: 0.2, roughness: 0.55 }),
     zipTie: new THREE.MeshStandardMaterial({ color: COLOR.zipTie, metalness: 0, roughness: 0.65 }),
@@ -681,21 +681,26 @@ export function createDrone(maxAnisotropy = 1) {
     pbGroup.add(diode);
   }
 
-  const resistorColors = [0x7a4a1e, 0x0d0d0d, 0xc9a03a];
-  for (let r = 0; r < 5; r++) {
-    const res = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 6, 10), mats.resistorBody);
-    body.rotation.z = Math.PI / 2;
-    res.add(body);
-    resistorColors.forEach((c, ci) => {
-      const band = new THREE.Mesh(new THREE.CylinderGeometry(1.02, 1.02, 0.5, 10), new THREE.MeshStandardMaterial({ color: c, roughness: 0.4 }));
-      band.rotation.z = Math.PI / 2;
-      band.position.x = -1.5 + ci * 1.2;
-      res.add(band);
-    });
-    res.position.set(-10 + r * 5, 1.5, 7);
-    pbGroup.add(res);
-  }
+  // Two values, because the bands encode the value and five identical parts
+  // would read as wrong to anyone who can decode them. See src/resistor.js.
+  // Two staggered rows at 9mm centres. The old row put five 6.3mm bodies on
+  // 5mm spacing, so they intersected each other and read as one long tube;
+  // staggering also looks hand-placed rather than machine-laid.
+  const resistorSet = buildResistors(
+    [
+      { x: -9, z: 6.5, value: "10k" },
+      { x: 0, z: 6.5, value: "1k" },
+      { x: 9, z: 6.5, value: "10k" },
+      { x: -4.5, z: 10.4, value: "1k" },
+      { x: 4.5, z: 10.4, value: "10k" },
+    ],
+    maxAnisotropy,
+    1.5, // the Vero board top surface
+    1.5  // and its thickness, so the leads pass through it
+  );
+  resistorSet.textures.forEach((t) => allTextures.push(t));
+  resistorTriangles = resistorSet.triangles;
+  pbGroup.add(resistorSet.group);
 
   [0, 1, 2].forEach((w) => {
     const from = new THREE.Vector3(-9 + w * 6, 3.5, -6);
@@ -804,7 +809,7 @@ export function createDrone(maxAnisotropy = 1) {
     });
   });
 
-  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7, espTriangles, motorTriangles, jumperTriangles, veroTriangles, veroBoardTriangles, veroHoles, motorFinish, motorAssets, FINISHES };
+  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7, espTriangles, motorTriangles, jumperTriangles, veroTriangles, veroBoardTriangles, veroHoles, resistorTriangles, motorFinish, motorAssets, FINISHES };
 }
 
 export function updateDynamicWires(dynamicWires) {

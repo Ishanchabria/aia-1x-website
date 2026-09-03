@@ -404,8 +404,12 @@ export function buildVeroboard(maxAnisotropy = 1) {
     bevelEnabled: false,
     curveSegments: 4,
   });
+  // rotateX(-90) already maps the extrusion depth from +Z onto +Y, so the slab
+  // lands on y = 0..T — the same "origin is the resting face" convention every
+  // other board here uses. The extra translate that used to be here lifted it
+  // to 1.5..3.0, which quietly buried anything placed on top of it inside the
+  // board: that is where the resistors went.
   extruded.rotateX(-Math.PI / 2);
-  extruded.translate(0, VERO.T, 0);
   const slab = splitSlab(extruded, bores);
   extruded.dispose();
 
