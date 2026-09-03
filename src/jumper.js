@@ -99,10 +99,15 @@ export function jumperMaterials() {
 // catches a broad highlight a round wire never does — plus the section has to
 // twist gradually along the length, which a tube cannot do.
 const RIB_RADIAL = 8;
+// Section of one wire. Was 1.6 x 1.0mm, which read as fat next to a 28.5mm
+// board -- roughly halved. Still flattened, so the broad face keeps catching a
+// wider highlight than a round wire would.
+const RIB_W = 0.9;
+const RIB_H = 0.55;
 
 function buildRibbon(curve, segments, twistTurns) {
-  const rx = 0.8; // 1.6mm wide
-  const ry = 0.5; // 1.0mm tall
+  const rx = RIB_W / 2;
+  const ry = RIB_H / 2;
   const pos = [];
   const nrm = [];
   const idx = [];
