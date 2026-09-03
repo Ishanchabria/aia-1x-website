@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { buildEsp32 } from "./esp32.js";
 import { buildMotorAssets, buildMotor, twistedPair, resolveFinish, FINISHES } from "./motor.js";
+import { buildJumperSet } from "./jumper.js";
 
 // Real edges catch a highlight; perfectly sharp ones read as CG. Radius is kept
 // small (a fabrication-scale edge break) and clamped so it can't collapse a
@@ -47,11 +48,18 @@ const COLOR = {
   foil: 0x4a505a,
   jst: 0x9aa3ad,
   zipTie: 0x0b0d11,
-  wireRed: 0xcc2b2b,
-  wireBlack: 0x161616,
-  wireYellow: 0xdcb92e,
-  wireBlue: 0x2255aa,
-  wireWhite: 0xd8dde4,
+  // GLOBAL WIRE PALETTE. Every wire on the drone uses these four and only
+  // these four — no black, green, brown or purple. Moulded plastic (connector
+  // housings, heat-shrink, zip ties) is exempt: this covers insulation only.
+  //
+  // These are the most saturated things on the drone, deliberately. On real
+  // hardware wire colour is the one place vivid colour appears, and it gives
+  // the eye an anchor on an otherwise near-monochrome object. Do not
+  // desaturate them to fit the blue-black palette.
+  wireRed: 0xd93b30,
+  wireBlue: 0x2f6bd4,
+  wireOrange: 0xe08a2e,
+  wireWhite: 0xe8e6e2,
 };
 
 // ---- small texture helper: draws a top-face detail (silkscreen/label/grid) ----
@@ -365,6 +373,7 @@ export function createDrone(maxAnisotropy = 1) {
   let seed = 0;
   let espTriangles = 0;
   let motorTriangles = 0;
+  let jumperTriangles = 0;
   const motorFinish = resolveFinish();
   const motorAssets = buildMotorAssets(motorFinish, maxAnisotropy);
   allTextures.push(motorAssets.rough);
@@ -566,7 +575,9 @@ export function createDrone(maxAnisotropy = 1) {
     // apart on the real hardware, so they alternate around the quad rather
     // than being decorative.
     const isRedBlue = i % 2 === 0;
-    const wireColors = isRedBlue ? [COLOR.wireRed, COLOR.wireBlue] : [COLOR.wireBlack, COLOR.wireWhite];
+    // Black is gone from the palette; orange reads far better than black did
+    // against the blue-black frame while still marking the second pair.
+    const wireColors = isRedBlue ? [COLOR.wireRed, COLOR.wireBlue] : [COLOR.wireOrange, COLOR.wireWhite];
     // One twisted pair per motor, leaving the wire-end cap and sagging in to
     // the plate. Built in drone-space so it parents to `group` — adding it to
     // `motor` would offset it by the motor position a second time.
@@ -723,7 +734,7 @@ export function createDrone(maxAnisotropy = 1) {
   [0, 1, 2].forEach((w) => {
     const from = new THREE.Vector3(-9 + w * 6, 3.5, -6);
     const to = new THREE.Vector3(-9 + (w + 1) * 6, 3.5, 2);
-    pbGroup.add(wireMesh(from, to, w % 2 ? COLOR.wireBlack : COLOR.wireRed, 0.35, 1, seed++));
+    pbGroup.add(wireMesh(from, to, w % 2 ? COLOR.wireBlue : COLOR.wireRed, 0.35, 1, seed++));
   });
 
   const pbOrigin = new THREE.Vector3(3, 2, 4);
@@ -768,7 +779,7 @@ export function createDrone(maxAnisotropy = 1) {
   plug.position.set(0, 2.5, -18);
   battGroup.add(plug);
   [-1, 1].forEach((x) => {
-    battGroup.add(wireMesh(new THREE.Vector3(x, 2.5, -15), new THREE.Vector3(x, 2.5, -20), x < 0 ? COLOR.wireRed : COLOR.wireBlack, 0.4, 0.5, seed++));
+    battGroup.add(wireMesh(new THREE.Vector3(x, 2.5, -15), new THREE.Vector3(x, 2.5, -20), x < 0 ? COLOR.wireRed : COLOR.wireBlue, 0.4, 0.5, seed++));
   });
 
   const battOrigin = new THREE.Vector3(0, -5, 0);
@@ -777,20 +788,31 @@ export function createDrone(maxAnisotropy = 1) {
   parts.push({ mesh: battGroup, origin: battOrigin.clone(), explode: new THREE.Vector3(0, -35, 0), stage: 2 });
 
   // ===================== dynamic wiring (rebuilt each frame) =====================
+  // Four F2F jumpers, MPU6050 -> ESP32, one colour per connection. Ground is
+  // normally black; black is out of the palette, so white stands in for it.
+  //   VCC -> 3V3  red     GND -> GND  white
+  //   SCL -> D22  orange  SDA -> D21  blue
+  // 2.54mm pitch, because that is the header pitch and the housings are 2.6mm
+  // across — at the 2mm spacing this used, four connectors physically
+  // intersected each other.
   const jumperSpecs = [
-    { color: COLOR.wireRed, offset: -3 },
-    { color: COLOR.wireBlack, offset: -1 },
-    { color: COLOR.wireYellow, offset: 1 },
-    { color: COLOR.wireBlue, offset: 3 },
+    { color: COLOR.wireRed, offset: -3.81 },
+    { color: COLOR.wireWhite, offset: -1.27 },
+    { color: COLOR.wireOrange, offset: 1.27 },
+    { color: COLOR.wireBlue, offset: 3.81 },
   ];
-  jumperSpecs.forEach(({ color, offset }) => {
-    const mesh = makeDynamicWire(color, 0.4, 5);
-    group.add(mesh);
-    dynamicWires.push({
-      mesh,
-      getFrom: () => mpuGroup.position.clone().add(new THREE.Vector3(offset, 1, -7.5)),
-      getTo: () => espGroup.position.clone().add(new THREE.Vector3(-13, 0, -20 + offset * 2)),
-    });
+  const jumperSet = buildJumperSet(jumperSpecs);
+  jumperSet.jumpers.forEach((j, k) => {
+    const { offset } = jumperSpecs[k];
+    group.add(j.group);
+    const getFrom = () => mpuGroup.position.clone().add(new THREE.Vector3(offset, 1, -7.5));
+    const getTo = () => espGroup.position.clone().add(new THREE.Vector3(-13, 0, -20 + offset * 2));
+    // Prime it once here rather than waiting for the first frame: the ribbon
+    // geometry does not exist until an update runs, so without this the wires
+    // are empty on the first rendered frame.
+    j.update(getFrom(), getTo());
+    jumperTriangles += countTriangles(j.group);
+    dynamicWires.push({ update: j.update, getFrom, getTo });
   });
 
   motorWireExits.forEach(({ point, colors }, i) => {
@@ -803,11 +825,17 @@ export function createDrone(maxAnisotropy = 1) {
     });
   });
 
-  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7, espTriangles, motorTriangles, motorFinish, motorAssets, FINISHES };
+  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7, espTriangles, motorTriangles, jumperTriangles, motorFinish, motorAssets, FINISHES };
 }
 
 export function updateDynamicWires(dynamicWires) {
-  dynamicWires.forEach(({ mesh, getFrom, getTo }) => {
+  dynamicWires.forEach(({ mesh, update, getFrom, getTo }) => {
+    // Jumpers own their own rebuild: they carry connector housings that have to
+    // be re-seated, and their sag has to fall away as the boards separate.
+    if (update) {
+      update(getFrom(), getTo());
+      return;
+    }
     mesh.geometry.dispose();
     mesh.geometry = buildTubeGeometry(getFrom(), getTo(), mesh.geometry.parameters?.radius ?? 0.4, 4);
   });
