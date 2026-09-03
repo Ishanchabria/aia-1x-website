@@ -18,15 +18,23 @@ export const WIRE = {
   white: 0xe8e6e2,
 };
 
+// Deliberately UNDER real scale. A DuPont housing is genuinely 2.6 x 2.6 x
+// 14mm, and at true scale two of them standing off a 20mm IMU board dominated
+// the electronics stack -- they read as structure rather than as detail. These
+// are ~half the length and ~70% of the section, which keeps the elongated
+// connector silhouette while letting the boards and wiring carry the frame.
+// Everything below derives from these, including where the ribbon leaves the
+// rear, so the whole part rescales from here.
 const H = {
-  w: 2.6, // across the latch axis, once the two plates are added
-  d: 2.6, // the other cross-axis
-  len: 14.0,
-  bore: 1.8, // the cavity the header pin enters
-  frontLen: 4.0, // how deep that cavity runs
-  plate: 0.2, // latch plate thickness = the depth of the recessed window
-  windowLen: 2.4,
-  windowFrom: 4.6, // roughly a third back from the mating end
+  w: 1.8,
+  d: 1.8,
+  len: 7.0,
+  bore: 1.15,
+  frontLen: 2.0,
+  plate: 0.15,
+  windowLen: 1.2,
+  windowFrom: 2.3,
+  contact: 0.75,
 };
 
 // --- shared geometry -------------------------------------------------------
@@ -76,8 +84,8 @@ function housingParts() {
   plateB.translate(0, (H.d - H.plate) / 2, H.windowFrom + H.windowLen + afterLen / 2);
 
   // A bright fleck of metal down a dark hole reads strongly and costs nothing.
-  const contact = new THREE.PlaneGeometry(1.1, 1.1);
-  contact.translate(0, 0, H.frontLen - 0.3);
+  const contact = new THREE.PlaneGeometry(H.contact, H.contact);
+  contact.translate(0, 0, H.frontLen - 0.18);
 
   return { front, body, plateA, plateB, contact };
 }
