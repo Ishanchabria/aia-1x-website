@@ -30,6 +30,7 @@ cp .claude/launch.example.json .claude/launch.json
 | `src/main.js` | Entry point. Page chrome, WebGL detection, dot grid. Loads the scene dynamically so a browser without WebGL never downloads three.js. |
 | `src/scene.js` | Everything WebGL: renderer, environment, lighting, post-processing, scroll wiring, keyboard stage controls. |
 | `src/drone.js` | The procedural model. 1 unit = 1mm, so the drone is genuinely 100mm motor-to-motor. |
+| `src/esp32.js` | The ESP32 DevKit board, rebuilt from reference photography. Own geometry, texture set and material palette; ~3,300 triangles. |
 | `src/dotfield.js` | The cursor-reactive particle field. Canvas 2D, ~6,600 particles at 1080p, with every tunable in one `CONFIG` object at the top. |
 | `src/style.css` | All page styling, including the aurora. |
 | `public/parts/cut/` | Part photos with backgrounds removed. |

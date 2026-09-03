@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import { buildEsp32 } from "./esp32.js";
 
 // Real edges catch a highlight; perfectly sharp ones read as CG. Radius is kept
 // small (a fabrication-scale edge break) and clamped so it can't collapse a
@@ -62,25 +63,6 @@ function canvasTexture(draw, w = 256, h = 256) {
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
-}
-
-function esp32Texture() {
-  return canvasTexture((ctx, w, h) => {
-    ctx.fillStyle = "#0f141c";
-    ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = "rgba(255,255,255,0.55)";
-    ctx.lineWidth = 1;
-    ctx.font = "10px monospace";
-    ctx.fillStyle = "rgba(255,255,255,0.55)";
-    for (let i = 0; i < 15; i++) {
-      const y = (h / 15) * i + 6;
-      ctx.fillText(String(i), 6, y);
-      ctx.fillText(String(i), w - 16, y);
-    }
-    ctx.font = "bold 20px sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.7)";
-    ctx.fillText("ESP32", w / 2 - 34, h - 14);
-  }, 384, 960);
 }
 
 function mpuTexture() {
@@ -370,6 +352,7 @@ export function createDrone(maxAnisotropy = 1) {
   const dynamicWires = [];
   const allTextures = [];
   let seed = 0;
+  let espTriangles = 0;
   const track = (tex) => (allTextures.push(tex), (tex.anisotropy = maxAnisotropy), tex);
 
   const microNoise = track(noiseRoughnessTexture());
@@ -451,7 +434,6 @@ export function createDrone(maxAnisotropy = 1) {
     shrink: new THREE.MeshStandardMaterial({ color: 0x14171c, metalness: 0, roughness: 0.7 }),
   };
 
-  const espTopMat = new THREE.MeshStandardMaterial({ map: track(esp32Texture()), roughness: 0.65 });
   const mpuTopMat = new THREE.MeshStandardMaterial({ map: track(mpuTexture()), roughness: 0.45 });
   const perfTopMat = new THREE.MeshStandardMaterial({ map: track(perfboardTopTexture()), roughness: 0.55 });
   const perfBottomMat = new THREE.MeshStandardMaterial({ map: track(perfboardBottomTexture()), roughness: 0.4, metalness: 0.3 });
@@ -770,45 +752,12 @@ export function createDrone(maxAnisotropy = 1) {
   parts.push({ mesh: pbGroup, origin: pbOrigin.clone(), explode: new THREE.Vector3(0, 15, 0), stage: 3 });
 
   // ============================= ESP32 =============================
-  const espGroup = new THREE.Group();
-  const espBoard = new THREE.Mesh(roundedPlate(28.5, 51.5, 1.6, 2), mats.pcbBlack);
-  espGroup.add(espBoard);
-  const espTop = new THREE.Mesh(new THREE.PlaneGeometry(26, 48), espTopMat);
-  espTop.rotation.x = -Math.PI / 2;
-  espTop.position.y = 1.62;
-  espGroup.add(espTop);
-
-  const shield = new THREE.Mesh(roundedBox(18, 3, 25, 0.3), mats.shield);
-  shield.position.set(0, 1.6 + 1.5, 10);
-  espGroup.add(shield);
-
-  const usb = new THREE.Mesh(roundedBox(8, 5, 5, 0.3), mats.usb);
-  usb.position.set(0, 1.6 + 2.5, -25 - 1);
-  espGroup.add(usb);
-
-  [-6, 6].forEach((x) => {
-    const btn = new THREE.Mesh(roundedBox(4, 2, 4, 0.18), mats.button);
-    btn.position.set(x, 1.6 + 1, -18);
-    espGroup.add(btn);
-  });
-
-  [[-5, -22, 2.2], [7, -20, 1.4], [10, -16, 2.8]].forEach(([x, z, hgt], i) => {
-    const smd = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, hgt, 12), i === 2 ? mats.amberGlass : mats.shaft);
-    smd.position.set(x, 1.6 + hgt / 2, z);
-    espGroup.add(smd);
-  });
-  [[-9, -12, 0xcc2b2b], [-9, -8, 0x2255aa]].forEach(([x, z, c]) => {
-    const led = new THREE.Mesh(new THREE.SphereGeometry(0.8, 8, 8), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.3, roughness: 0.3 }));
-    led.position.set(x, 1.6 + 0.8, z);
-    espGroup.add(led);
-  });
-
-  [-13, 13].forEach((x) => {
-    const pins = pinRow(15, 3.2, 6, mats.brass, mats.solder);
-    pins.rotation.y = Math.PI / 2;
-    pins.position.set(x, 0, 0);
-    espGroup.add(pins);
-  });
+  // Rebuilt from reference photography; lives in its own module because it
+  // carries its own texture set and material palette. See src/esp32.js.
+  const esp = buildEsp32(maxAnisotropy);
+  esp.textures.forEach((t) => allTextures.push(t));
+  espTriangles = esp.triangles;
+  const espGroup = esp.group;
 
   const espOrigin = new THREE.Vector3(3, 2 + 1.5, 4);
   espGroup.position.copy(espOrigin);
@@ -874,7 +823,7 @@ export function createDrone(maxAnisotropy = 1) {
     });
   });
 
-  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7 };
+  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7, espTriangles };
 }
 
 export function updateDynamicWires(dynamicWires) {
