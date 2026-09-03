@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 import { buildEsp32 } from "./esp32.js";
 import { buildMotorAssets, buildMotor, twistedPair, resolveFinish, FINISHES } from "./motor.js";
 import { buildJumperSet } from "./jumper.js";
+import { buildVeroboard } from "./veroboard.js";
 
 // Real edges catch a highlight; perfectly sharp ones read as CG. Radius is kept
 // small (a fabrication-scale edge break) and clamped so it can't collapse a
@@ -39,7 +40,6 @@ const COLOR = {
   pcbBlue: 0x14315e,
   chip: 0x090b0f,
   amber: 0xb07a3c,
-  veroboard: 0x2a2c30,
   copper: 0x8a6a4a,
   mosfetBody: 0x101318,
   mosfetTab: 0x9aa3ad,
@@ -116,37 +116,6 @@ function noiseRoughnessTexture() {
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(4, 4);
   return tex;
-}
-
-function perfboardTopTexture() {
-  return canvasTexture((ctx, w, h) => {
-    ctx.fillStyle = "#2a2c30";
-    ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = "rgba(8,10,14,0.75)";
-    const step = 36;
-    for (let x = step / 2; x < w; x += step) {
-      for (let y = step / 2; y < h; y += step) {
-        ctx.beginPath();
-        ctx.arc(x, y, 4.8, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-  }, 768, 660);
-}
-
-function perfboardBottomTexture() {
-  return canvasTexture((ctx, w, h) => {
-    ctx.fillStyle = "#1b1d21";
-    ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = "rgba(138,106,74,0.85)";
-    ctx.lineWidth = 3;
-    for (let y = 8; y < h; y += 14) {
-      ctx.beginPath();
-      ctx.moveTo(12, y + ((y / 42) % 2) * 15);
-      ctx.lineTo(w - 12, y);
-      ctx.stroke();
-    }
-  }, 768, 660);
 }
 
 function batteryLabelTexture() {
@@ -374,6 +343,9 @@ export function createDrone(maxAnisotropy = 1) {
   let espTriangles = 0;
   let motorTriangles = 0;
   let jumperTriangles = 0;
+  let veroTriangles = 0;
+  let veroBoardTriangles = 0;
+  let veroHoles = 0;
   const motorFinish = resolveFinish();
   const motorAssets = buildMotorAssets(motorFinish, maxAnisotropy);
   allTextures.push(motorAssets.rough);
@@ -445,7 +417,6 @@ export function createDrone(maxAnisotropy = 1) {
       transparent: true,
       opacity: 0.82,
     }),
-    veroboard: new THREE.MeshStandardMaterial({ color: COLOR.veroboard, metalness: 0, roughness: 0.78, roughnessMap: microNoise }),
     copper: new THREE.MeshStandardMaterial({ color: COLOR.copper, metalness: 0.9, roughness: 0.45 }),
     mosfetBody: new THREE.MeshStandardMaterial({ color: COLOR.mosfetBody, metalness: 0, roughness: 0.6 }),
     mosfetTab: new THREE.MeshStandardMaterial({ color: COLOR.mosfetTab, metalness: 0.95, roughness: 0.42, envMapIntensity: 0.6 }),
@@ -459,8 +430,6 @@ export function createDrone(maxAnisotropy = 1) {
   };
 
   const mpuTopMat = new THREE.MeshStandardMaterial({ map: track(mpuTexture()), roughness: 0.45 });
-  const perfTopMat = new THREE.MeshStandardMaterial({ map: track(perfboardTopTexture()), roughness: 0.55 });
-  const perfBottomMat = new THREE.MeshStandardMaterial({ map: track(perfboardBottomTexture()), roughness: 0.4, metalness: 0.3 });
   const battLabelMat = new THREE.MeshStandardMaterial({ map: track(batteryLabelTexture()), roughness: 0.4, metalness: 0.3 });
 
   // ============================= FRAME (anchor) =============================
@@ -668,17 +637,14 @@ export function createDrone(maxAnisotropy = 1) {
 
   // ============================= POWER BOARD =============================
   const pbGroup = new THREE.Group();
-  const pbBoard = new THREE.Mesh(roundedPlate(30, 25, 1.5, 1.5), mats.veroboard);
-  pbGroup.add(pbBoard);
-  // drilled-hole grid on top, copper strip traces underneath
-  const pbTop = new THREE.Mesh(new THREE.PlaneGeometry(29, 24), perfTopMat);
-  pbTop.rotation.x = -Math.PI / 2;
-  pbTop.position.y = 1.52;
-  pbGroup.add(pbTop);
-  const pbBottom = new THREE.Mesh(new THREE.PlaneGeometry(29, 24), perfBottomMat);
-  pbBottom.rotation.x = Math.PI / 2;
-  pbBottom.position.y = -0.02;
-  pbGroup.add(pbBottom);
+  // Warm amber paper phenolic with ~99 real bored holes, hand-cut edges and
+  // soldered underside — see src/veroboard.js.
+  const vero = buildVeroboard(maxAnisotropy);
+  vero.textures.forEach((t) => allTextures.push(t));
+  veroTriangles = vero.triangles;
+  veroBoardTriangles = vero.boardTriangles;
+  veroHoles = vero.holeCount;
+  pbGroup.add(vero.group);
 
   for (let m = 0; m < 4; m++) {
     const mosfet = new THREE.Group();
@@ -825,7 +791,7 @@ export function createDrone(maxAnisotropy = 1) {
     });
   });
 
-  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7, espTriangles, motorTriangles, jumperTriangles, motorFinish, motorAssets, FINISHES };
+  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7, espTriangles, motorTriangles, jumperTriangles, veroTriangles, veroBoardTriangles, veroHoles, motorFinish, motorAssets, FINISHES };
 }
 
 export function updateDynamicWires(dynamicWires) {
