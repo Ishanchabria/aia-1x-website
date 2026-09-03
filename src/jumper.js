@@ -25,16 +25,26 @@ export const WIRE = {
 // connector silhouette while letting the boards and wiring carry the frame.
 // Everything below derives from these, including where the ribbon leaves the
 // rear, so the whole part rescales from here.
+// Far under real scale, on purpose. A DuPont housing is genuinely
+// 2.6 x 2.6 x 14mm; at true scale two of them standing off a 20mm IMU board
+// were the tallest thing in the frame. These are down to a small black ferrule
+// at each wire end -- just enough to terminate the wire and stop it appearing
+// to grow out of the board, and no more. Everything else derives from these,
+// including where the ribbon leaves the rear, so the part rescales from here.
+//
+// At this size the latch window and the internal contact no longer resolve on
+// screen. They are kept because they cost ~200 triangles across all eight and
+// the geometry scales with the rest; drop them if you want that back.
 const H = {
-  w: 1.8,
-  d: 1.8,
-  len: 7.0,
-  bore: 1.15,
-  frontLen: 2.0,
-  plate: 0.15,
-  windowLen: 1.2,
-  windowFrom: 2.3,
-  contact: 0.75,
+  w: 1.1,
+  d: 1.1,
+  len: 3.0,
+  bore: 0.7,
+  frontLen: 0.9,
+  plate: 0.1,
+  windowLen: 0.5,
+  windowFrom: 1.0,
+  contact: 0.45,
 };
 
 // --- shared geometry -------------------------------------------------------
@@ -85,7 +95,7 @@ function housingParts() {
 
   // A bright fleck of metal down a dark hole reads strongly and costs nothing.
   const contact = new THREE.PlaneGeometry(H.contact, H.contact);
-  contact.translate(0, 0, H.frontLen - 0.18);
+  contact.translate(0, 0, H.frontLen - 0.1);
 
   return { front, body, plateA, plateB, contact };
 }
