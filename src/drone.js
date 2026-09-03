@@ -6,6 +6,7 @@ import { buildJumperSet } from "./jumper.js";
 import { buildVeroboard } from "./veroboard.js";
 import { buildResistors } from "./resistor.js";
 import { buildDiodes } from "./diode.js";
+import { buildMpu6050 } from "./mpu6050.js";
 
 // Measured switch, not a preference — see the note in src/diode.js.
 export const DIODE_TRANSMISSION = false;
@@ -352,6 +353,7 @@ export function createDrone(maxAnisotropy = 1) {
   let veroHoles = 0;
   let resistorTriangles = 0;
   let diodeTriangles = 0;
+  let mpuTriangles = 0;
   const motorFinish = resolveFinish();
   const motorAssets = buildMotorAssets(motorFinish, maxAnisotropy);
   allTextures.push(motorAssets.rough);
@@ -611,29 +613,21 @@ export function createDrone(maxAnisotropy = 1) {
     });
   });
 
+  // The ESP32 is built here rather than at its own section because the MPU
+  // below shares its header plastic, pin, fillet and FR4 edge materials —
+  // literally the same instances, not copies with matching numbers.
+  const esp = buildEsp32(maxAnisotropy);
+  esp.textures.forEach((t) => allTextures.push(t));
+  espTriangles = esp.triangles;
+
   // ============================= MPU6050 =============================
-  const mpuGroup = new THREE.Group();
-  const mpuBoard = new THREE.Mesh(roundedPlate(20, 15, 1, 1.2), mats.pcbBlue);
-  mpuGroup.add(mpuBoard);
-  const mpuTop = new THREE.Mesh(new THREE.PlaneGeometry(19, 14), mpuTopMat);
-  mpuTop.rotation.x = -Math.PI / 2;
-  mpuTop.position.y = 1.02;
-  mpuGroup.add(mpuTop);
-  const mpuChip = new THREE.Mesh(roundedBox(4, 1, 4, 0.1), mats.chip);
-  mpuChip.position.set(0, 1.5, 0);
-  mpuGroup.add(mpuChip);
-  [-6, 6].forEach((z) => {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.35, 8, 16), mats.brass);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.set(7, 1.05, z);
-    mpuGroup.add(ring);
-  });
-  const mpuCap = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 2, 10), mats.amberGlass);
-  mpuCap.position.set(-6, 2, 5);
-  mpuGroup.add(mpuCap);
-  const mpuPins = pinRow(8, 1.7, 4, mats.brass, mats.solder);
-  mpuPins.position.set(-2, 1, -7.5);
-  mpuGroup.add(mpuPins);
+  // Royal blue rather than navy, cream FR4 edge, real bored header and
+  // mounting holes. Shares the ESP32 material instances for the header
+  // plastic, pins, fillets and FR4 edge. See src/mpu6050.js.
+  const mpu = buildMpu6050(maxAnisotropy, esp.materials);
+  mpu.textures.forEach((t) => allTextures.push(t));
+  mpuTriangles = mpu.triangles;
+  const mpuGroup = mpu.group;
 
   const mpuOrigin = new THREE.Vector3(-6, 2, -6);
   mpuGroup.position.copy(mpuOrigin);
@@ -723,9 +717,6 @@ export function createDrone(maxAnisotropy = 1) {
   // ============================= ESP32 =============================
   // Rebuilt from reference photography; lives in its own module because it
   // carries its own texture set and material palette. See src/esp32.js.
-  const esp = buildEsp32(maxAnisotropy);
-  esp.textures.forEach((t) => allTextures.push(t));
-  espTriangles = esp.triangles;
   const espGroup = esp.group;
 
   const espOrigin = new THREE.Vector3(3, 2 + 1.5, 4);
@@ -816,7 +807,7 @@ export function createDrone(maxAnisotropy = 1) {
     });
   });
 
-  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7, espTriangles, motorTriangles, jumperTriangles, veroTriangles, veroBoardTriangles, veroHoles, resistorTriangles, diodeTriangles, motorFinish, motorAssets, FINISHES };
+  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7, espTriangles, motorTriangles, jumperTriangles, veroTriangles, veroBoardTriangles, veroHoles, resistorTriangles, diodeTriangles, mpuTriangles, motorFinish, motorAssets, FINISHES };
 }
 
 export function updateDynamicWires(dynamicWires) {
