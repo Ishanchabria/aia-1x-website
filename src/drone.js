@@ -7,6 +7,7 @@ import { buildVeroboard } from "./veroboard.js";
 import { buildResistors } from "./resistor.js";
 import { buildDiodes } from "./diode.js";
 import { buildMpu6050 } from "./mpu6050.js";
+import { buildFrame, resolveCameraMount } from "./frame.js";
 
 // Measured switch, not a preference — see the note in src/diode.js.
 export const DIODE_TRANSMISSION = false;
@@ -33,8 +34,6 @@ function roundedBox(w, h, d, radius = 0.25) {
 // the real wire colours, which are small enough to read as accurate detail and
 // give the eye one warm anchor on an otherwise cold object.
 const COLOR = {
-  frame: 0x0b0e14,
-  accentGlow: 0x3d7dff,
   gunmetal: 0x8f99a8,
   shaft: 0x6e7783,
   propBlack: 0x0a0c10,
@@ -354,6 +353,7 @@ export function createDrone(maxAnisotropy = 1) {
   let resistorTriangles = 0;
   let diodeTriangles = 0;
   let mpuTriangles = 0;
+  let frameTriangles = 0;
   const motorFinish = resolveFinish();
   const motorAssets = buildMotorAssets(motorFinish, maxAnisotropy);
   allTextures.push(motorAssets.rough);
@@ -364,22 +364,6 @@ export function createDrone(maxAnisotropy = 1) {
   const mats = {
     // anodised / soft-touch dark blue-charcoal — near-black in shadow, cool blue
     // in the highlight. Clearcoat is what makes it read as a finished surface.
-    frame: new THREE.MeshPhysicalMaterial({
-      color: COLOR.frame,
-      metalness: 0.15,
-      roughness: 0.46,
-      clearcoat: 0.5,
-      clearcoatRoughness: 0.4,
-      envMapIntensity: 0.28,
-      roughnessMap: microNoise,
-    }),
-    accentTrim: new THREE.MeshStandardMaterial({
-      color: 0x0a1020,
-      emissive: COLOR.accentGlow,
-      emissiveIntensity: 2.2,
-      roughness: 0.4,
-      metalness: 0,
-    }),
     gunmetal: new THREE.MeshStandardMaterial({
       color: COLOR.gunmetal,
       metalness: 1,
@@ -440,102 +424,15 @@ export function createDrone(maxAnisotropy = 1) {
   const battLabelMat = new THREE.MeshStandardMaterial({ map: track(batteryLabelTexture()), roughness: 0.4, metalness: 0.3 });
 
   // ============================= FRAME (anchor) =============================
-  const frameGroup = new THREE.Group();
-  const plateRadial = 15; // half-width of the center plate footprint
-  const plate = new THREE.Mesh(roundedPlate(30, 30, 2, 3), mats.frame);
-  frameGroup.add(plate);
-
-  const armLength = 35;
-  const armAngles = [45, 135, 225, 315]; // FR, FL, RL, RR (nose = +Z)
-  const armRoot = plateRadial;
-  const motorTips = [];
-
-  armAngles.forEach((deg) => {
-    const rad = THREE.MathUtils.degToRad(deg);
-    const dir = new THREE.Vector3(Math.cos(rad), 0, Math.sin(rad));
-
-    const shape = new THREE.Shape();
-    shape.moveTo(0, 4);
-    shape.lineTo(armLength, 5);
-    shape.lineTo(armLength, -5);
-    shape.lineTo(0, -4);
-    shape.closePath();
-    const armGeo = new THREE.ExtrudeGeometry(shape, { depth: 2, bevelEnabled: true, bevelSize: 0.4, bevelThickness: 0.4, bevelSegments: 2 });
-    armGeo.rotateX(Math.PI / 2);
-    // slight upward sweep toward the tip
-    const pos = armGeo.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const t = THREE.MathUtils.clamp(x / armLength, 0, 1);
-      pos.setY(i, pos.getY(i) + t * t * 3);
-    }
-    pos.needsUpdate = true;
-    armGeo.computeVertexNormals();
-
-    const armMesh = new THREE.Mesh(armGeo, mats.frame);
-    const armPivot = new THREE.Group();
-    armPivot.add(armMesh);
-
-    // single inset accent channel per arm — restrained, not a light show
-    const channel = new THREE.Mesh(roundedBox(armLength - 6, 0.45, 0.8, 0.12), mats.accentTrim);
-    channel.position.set(armLength / 2, 2.1, 0);
-    const chPos = channel.geometry.attributes.position;
-    for (let i = 0; i < chPos.count; i++) {
-      const t = THREE.MathUtils.clamp((chPos.getX(i) + (armLength - 6) / 2 + 3) / armLength, 0, 1);
-      chPos.setY(i, chPos.getY(i) + t * t * 3);
-    }
-    chPos.needsUpdate = true;
-    channel.geometry.computeVertexNormals();
-    armPivot.add(channel);
-    armPivot.position.set(dir.x * armRoot, 1, dir.z * armRoot);
-    armPivot.rotation.y = -rad;
-    frameGroup.add(armPivot);
-
-    const tipRadial = armRoot + armLength;
-    const tip = new THREE.Vector3(dir.x * tipRadial, 1 + 9, dir.z * tipRadial);
-    motorTips.push({ tip, dir, deg });
-
-    const tube = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 5.5, 12, 20, 1, true), mats.frame);
-    tube.position.set(tip.x, 6, tip.z);
-    frameGroup.add(tube);
-
-    // screw boss at the motor mount
-    const boss = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.9, 1.6, 12), mats.frame);
-    boss.position.set(tip.x * 0.88, 1.4, tip.z * 0.88);
-    frameGroup.add(boss);
-    const bossHole = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 1.8, 10), mats.chip);
-    bossHole.position.copy(boss.position);
-    frameGroup.add(bossHole);
-    // fillet where the arm meets the centre plate - moulded parts never have
-    // sharp internal corners
-    const fillet = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 4.6, 1.8, 14), mats.frame);
-    fillet.position.set(dir.x * (armRoot - 1), 1, dir.z * (armRoot - 1));
-    frameGroup.add(fillet);
-
-    const nub = new THREE.Mesh(new THREE.ConeGeometry(2, 3, 10), mats.frame);
-    nub.position.set(tip.x, -0.5, tip.z);
-    nub.rotation.x = Math.PI;
-    frameGroup.add(nub);
-  });
-
-  [0, 1, 2, 3].forEach((i) => {
-    const a = (i * Math.PI) / 2 + Math.PI / 4;
-    const zip = new THREE.Mesh(new THREE.TorusGeometry(4.5, 0.35, 6, 12), mats.zipTie);
-    zip.rotation.x = Math.PI / 2;
-    zip.position.set(Math.cos(a) * plateRadial * 1.6, 1, Math.sin(a) * plateRadial * 1.6);
-    frameGroup.add(zip);
-  });
-
-  [[10.5, 10.5], [10.5, -10.5], [-10.5, 10.5], [-10.5, -10.5]].forEach(([x, z]) => {
-    const b = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.5, 1.2, 12), mats.frame);
-    b.position.set(x, 2, z);
-    frameGroup.add(b);
-    const h = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.4, 8), mats.chip);
-    h.position.set(x, 2.1, z);
-    frameGroup.add(h);
-  });
-
-  group.add(frameGroup);
+  // Carbon fibre plate sandwich, replacing the Q100 moulded-ABS frame
+  // entirely. Motors seat in rubber grommets at the arm tips rather than in
+  // moulded tubes, so motorTips now points at the grommet bore.
+  // See src/frame.js.
+  const frame = buildFrame(maxAnisotropy, resolveCameraMount());
+  frame.textures.forEach((t) => allTextures.push(t));
+  frameTriangles = frame.triangles;
+  const { motorTips, plateRadial } = frame;
+  group.add(frame.group);
 
   // ============================= MOTORS (anchor) =============================
   const motorWireExits = [];
@@ -807,7 +704,7 @@ export function createDrone(maxAnisotropy = 1) {
     });
   });
 
-  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7, espTriangles, motorTriangles, jumperTriangles, veroTriangles, veroBoardTriangles, veroHoles, resistorTriangles, diodeTriangles, mpuTriangles, motorFinish, motorAssets, FINISHES };
+  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7, espTriangles, motorTriangles, jumperTriangles, veroTriangles, veroBoardTriangles, veroHoles, resistorTriangles, diodeTriangles, mpuTriangles, frameTriangles, motorFinish, motorAssets, FINISHES };
 }
 
 export function updateDynamicWires(dynamicWires) {
