@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { buildEsp32 } from "./esp32.js";
+import { buildMotorAssets, buildMotor, twistedPair, resolveFinish, FINISHES } from "./motor.js";
 
 // Real edges catch a highlight; perfectly sharp ones read as CG. Radius is kept
 // small (a fabrication-scale edge break) and clamped so it can't collapse a
@@ -345,6 +346,16 @@ function makeDynamicWire(color, radius = 0.5) {
   return new THREE.Mesh(geo, mat);
 }
 
+function countTriangles(obj) {
+  let n = 0;
+  obj.traverse((o) => {
+    if (!o.isMesh) return;
+    const g = o.geometry;
+    n += ((g.index ? g.index.count : g.attributes.position.count) / 3) * (o.isInstancedMesh ? o.count : 1);
+  });
+  return n;
+}
+
 // ---------------------------------------------------------------------------
 export function createDrone(maxAnisotropy = 1) {
   const group = new THREE.Group();
@@ -353,6 +364,10 @@ export function createDrone(maxAnisotropy = 1) {
   const allTextures = [];
   let seed = 0;
   let espTriangles = 0;
+  let motorTriangles = 0;
+  const motorFinish = resolveFinish();
+  const motorAssets = buildMotorAssets(motorFinish, maxAnisotropy);
+  allTextures.push(motorAssets.rough);
   const track = (tex) => (allTextures.push(tex), (tex.anisotropy = maxAnisotropy), tex);
 
   const microNoise = track(noiseRoughnessTexture());
@@ -540,62 +555,27 @@ export function createDrone(maxAnisotropy = 1) {
   // ============================= MOTORS (anchor) =============================
   const motorWireExits = [];
   motorTips.forEach(({ tip, dir }, i) => {
-    const motor = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(4.25, 4.25, 20, 32), mats.gunmetal);
-    body.position.y = 10;
-    motor.add(body);
+    // Rebuilt from reference photography — see src/motor.js. No vent holes:
+    // the earlier order specified three in the end cap, and the photos show
+    // smooth unbroken caps.
+    const built = buildMotor(motorAssets, i);
+    const motor = built.group;
+    motorTriangles += countTriangles(motor);
 
-    // chamfered rims — a flat disc cap edge is one of the loudest CG tells
-    [0.35, 19.65].forEach((y) => {
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(4.08, 0.35, 8, 32), mats.gunmetal);
-      rim.rotation.x = Math.PI / 2;
-      rim.position.y = y;
-      motor.add(rim);
-    });
-
-    // faint lengthwise seam line down the can
-    const seam = new THREE.Mesh(
-      roundedBox(0.35, 19, 0.35, 0.06),
-      new THREE.MeshStandardMaterial({ color: 0x8b8e90, roughness: 0.45, metalness: 0.85 })
-    );
-    seam.position.set(4.2, 10, 0);
-    motor.add(seam);
-
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 5, 12), mats.shaft);
-    shaft.position.y = 22.5;
-    motor.add(shaft);
-
-    // circlip groove at the shaft base
-    const circlip = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.09, 6, 16), mats.shaft);
-    circlip.rotation.x = Math.PI / 2;
-    circlip.position.y = 20.6;
-    motor.add(circlip);
-
-    // moulded grommet where the leads leave the can
-    const grommet = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.4, 1.2, 10), mats.zipTie);
-    grommet.rotation.x = Math.PI / 2;
-    grommet.position.set(0, 1.6, -4.1);
-    motor.add(grommet);
-
-    for (let v = 0; v < 3; v++) {
-      const a = (v / 3) * Math.PI * 2;
-      const vent = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.6, 6), mats.mosfetBody);
-      vent.position.set(Math.cos(a) * 2, 20.1, Math.sin(a) * 2);
-      motor.add(vent);
-    }
-
+    // Red/blue and black/white are how the two rotation directions are told
+    // apart on the real hardware, so they alternate around the quad rather
+    // than being decorative.
     const isRedBlue = i % 2 === 0;
     const wireColors = isRedBlue ? [COLOR.wireRed, COLOR.wireBlue] : [COLOR.wireBlack, COLOR.wireWhite];
-    const exitPoints = [];
-    wireColors.forEach((color, w) => {
-      const from = new THREE.Vector3(tip.x, tip.y - 8, tip.z).add(new THREE.Vector3(-dir.x * 1.5 * (w ? 1 : -1), 0, -dir.z * 1.5 * (w ? 1 : -1)));
-      const to = new THREE.Vector3(dir.x * (plateRadial + 4), 0.5, dir.z * (plateRadial + 4));
-      // built in drone-space, so it parents to `group` — adding it to `motor`
-      // would offset it by the motor position a second time
-      group.add(wireMesh(from, to, color, 0.45, 2.5, seed++));
-      exitPoints.push(to.clone());
-    });
-    motorWireExits.push({ point: exitPoints[0], colors: wireColors });
+    // One twisted pair per motor, leaving the wire-end cap and sagging in to
+    // the plate. Built in drone-space so it parents to `group` — adding it to
+    // `motor` would offset it by the motor position a second time.
+    const from = new THREE.Vector3(tip.x, 0.2, tip.z);
+    const to = new THREE.Vector3(dir.x * (plateRadial + 4), 0.5, dir.z * (plateRadial + 4));
+    const pair = twistedPair(from, to, wireColors[0], wireColors[1], seed++);
+    group.add(pair);
+    motorTriangles += countTriangles(pair);
+    motorWireExits.push({ point: to.clone(), colors: wireColors });
 
     motor.position.set(tip.x, 0, tip.z);
     group.add(motor);
@@ -823,7 +803,7 @@ export function createDrone(maxAnisotropy = 1) {
     });
   });
 
-  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7, espTriangles };
+  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7, espTriangles, motorTriangles, motorFinish, motorAssets, FINISHES };
 }
 
 export function updateDynamicWires(dynamicWires) {
