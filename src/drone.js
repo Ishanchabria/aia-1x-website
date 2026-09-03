@@ -745,7 +745,7 @@ export function createDrone(maxAnisotropy = 1) {
   plug.position.set(0, 2.5, -18);
   battGroup.add(plug);
   [-1, 1].forEach((x) => {
-    battGroup.add(wireMesh(new THREE.Vector3(x, 2.5, -15), new THREE.Vector3(x, 2.5, -20), x < 0 ? COLOR.wireRed : COLOR.wireBlue, 0.4, 0.5, seed++));
+    battGroup.add(wireMesh(new THREE.Vector3(x, 2.5, -15), new THREE.Vector3(x, 2.5, -20), x < 0 ? COLOR.wireRed : COLOR.wireWhite, 0.4, 0.5, seed++));
   });
 
   const battOrigin = new THREE.Vector3(0, -5, 0);
@@ -758,21 +758,34 @@ export function createDrone(maxAnisotropy = 1) {
   // normally black; black is out of the palette, so white stands in for it.
   //   VCC -> 3V3  red     GND -> GND  white
   //   SCL -> D22  orange  SDA -> D21  blue
-  // 2.54mm pitch, because that is the header pitch and the housings are 2.6mm
-  // across — at the 2mm spacing this used, four connectors physically
-  // intersected each other.
+  // Endpoints come from the ACTUAL pin each wire lands on, not from a shared
+  // anchor with four offsets. That is what was wrong before: the four ran as
+  // near-parallel arcs 2.8mm apart and read as one band. VCC/GND sit at one end
+  // of the ESP header and D21/D22 near the other, ~33mm away, so routing to the
+  // real pins makes the four fan out and cross on their own.
+  //
+  // MPU6050 header, left to right: INT AD0 XCL XDA SDA SCL GND VCC — 8 pins at
+  // 1.7mm, centred on the row at local (-2, 1, -7.5).
+  const mpuPin = (i) => new THREE.Vector3(-2 + (-5.95 + i * 1.7), 1.5, -7.5);
+  // ESP32 header B (+X side) carries D23 D22 TX0 RX0 D21 D19 D18 D5 TX2 RX2 D4
+  // D2 D15 GND 3V3, running +Z to -Z at 2.54mm from the module end.
+  const espPin = (i) => new THREE.Vector3(12.65, 4.1, 17.78 - i * 2.54);
   const jumperSpecs = [
-    { color: COLOR.wireRed, offset: -3.81 },
-    { color: COLOR.wireWhite, offset: -1.27 },
-    { color: COLOR.wireOrange, offset: 1.27 },
-    { color: COLOR.wireBlue, offset: 3.81 },
+    // Sag depths assigned so no two ADJACENT pins on the MPU drape alike, and a
+    // different lateral bow each so they separate in plan as well as elevation.
+    { name: "wire_vcc_red", color: COLOR.wireRed, from: mpuPin(7), to: espPin(14), sag: 1.4, lateral: 1.5, twist: 0.35 },
+    { name: "wire_gnd_white", color: COLOR.wireWhite, from: mpuPin(6), to: espPin(13), sag: 4.8, lateral: 0.1, twist: 0.6 },
+    { name: "wire_scl_orange", color: COLOR.wireOrange, from: mpuPin(5), to: espPin(1), sag: 3.0, lateral: -1.9, twist: 0.5 },
+    { name: "wire_sda_blue", color: COLOR.wireBlue, from: mpuPin(4), to: espPin(4), sag: 6.4, lateral: 1.1, twist: 0.75 },
   ];
   const jumperSet = buildJumperSet(jumperSpecs);
   jumperSet.jumpers.forEach((j, k) => {
-    const { offset } = jumperSpecs[k];
+    const { from, to } = jumperSpecs[k];
     group.add(j.group);
-    const getFrom = () => mpuGroup.position.clone().add(new THREE.Vector3(offset, 1, -7.5));
-    const getTo = () => espGroup.position.clone().add(new THREE.Vector3(-13, 0, -20 + offset * 2));
+    // Each wire tracks its own two pins as the boards separate, so they stretch
+    // and straighten independently rather than as a unit.
+    const getFrom = () => mpuGroup.position.clone().add(from);
+    const getTo = () => espGroup.position.clone().add(to);
     // Prime it once here rather than waiting for the first frame: the ribbon
     // geometry does not exist until an update runs, so without this the wires
     // are empty on the first rendered frame.

@@ -152,7 +152,7 @@ function buildRibbon(curve, segments, twistTurns) {
 }
 
 // ---------------------------------------------------------------------------
-export function buildJumper({ color, index, mats, geo, segments = 10 }) {
+export function buildJumper({ color, index, name, sag, lateral, twist, mats, geo, segments = 32 }) {
   const group = new THREE.Group();
 
   const insulation = new THREE.MeshPhysicalMaterial({
@@ -182,17 +182,22 @@ export function buildJumper({ color, index, mats, geo, segments = 10 }) {
   let s = 3571 * (index + 1);
   const rnd = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
   const roll = [rnd(), rnd()].map((r) => Math.floor(r * 4) * (Math.PI / 2) + (rnd() - 0.5) * 0.25);
-  const sagBias = 0.7 + rnd() * 0.9; // each wire drapes differently
-  const twistTurns = 0.4 + rnd() * 0.5;
-  const lateral = (rnd() - 0.5) * 2;
+  // Sag, lateral bow and twist are handed in per wire rather than derived from
+  // the index, so no two of the four drape or fan alike.
+  const sagDepth = sag;
+  const twistTurns = twist;
 
   const ribbon = new THREE.Mesh(new THREE.BufferGeometry(), insulation);
+  ribbon.name = name;
+  // inspectable from the console: proves the per-wire params actually arrive
+  ribbon.userData = { sag, lateral, twist };
   group.add(ribbon);
 
   const dirA = new THREE.Vector3();
   const startA = new THREE.Vector3();
   const startB = new THREE.Vector3();
   const mid = new THREE.Vector3();
+  const perp = new THREE.Vector3();
   const zAxis = new THREE.Vector3(0, 0, 1);
   const q = new THREE.Quaternion();
   const roller = new THREE.Quaternion();
@@ -228,8 +233,14 @@ export function buildJumper({ color, index, mats, geo, segments = 10 }) {
     // the bow is a function of slack rather than a constant.
     const slack = Math.max(0, 1 - span / 34);
     mid.copy(startA).lerp(startB, 0.5);
-    mid.y -= (1.2 + span * 0.16) * sagBias * (0.25 + slack);
-    mid.x += lateral * slack;
+    // 0.9 floor, not 0.35: at the old multiplier a 2mm sag produced a 0.7mm bow
+    // over a 21mm span, so all four read as near-straight parallel lines no
+    // matter what sag they were given.
+    mid.y -= sagDepth * (0.9 + slack * 0.9);
+    // fan sideways, perpendicular to the run, so they separate in PLAN as well
+    // as in elevation -- parallel arcs at the same height read as one band
+    perp.set(-(startB.z - startA.z), 0, startB.x - startA.x).normalize();
+    mid.addScaledVector(perp, lateral * (0.45 + slack * 0.8));
 
     const curve = new THREE.CatmullRomCurve3([startA, mid, startB]);
     ribbon.geometry.dispose();
