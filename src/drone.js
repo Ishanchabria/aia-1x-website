@@ -5,6 +5,10 @@ import { buildMotorAssets, buildMotor, twistedPair, resolveFinish, FINISHES } fr
 import { buildJumperSet } from "./jumper.js";
 import { buildVeroboard } from "./veroboard.js";
 import { buildResistors } from "./resistor.js";
+import { buildDiodes } from "./diode.js";
+
+// Measured switch, not a preference — see the note in src/diode.js.
+export const DIODE_TRANSMISSION = false;
 
 // Real edges catch a highlight; perfectly sharp ones read as CG. Radius is kept
 // small (a fabrication-scale edge break) and clamped so it can't collapse a
@@ -347,6 +351,7 @@ export function createDrone(maxAnisotropy = 1) {
   let veroBoardTriangles = 0;
   let veroHoles = 0;
   let resistorTriangles = 0;
+  let diodeTriangles = 0;
   const motorFinish = resolveFinish();
   const motorAssets = buildMotorAssets(motorFinish, maxAnisotropy);
   allTextures.push(motorAssets.rough);
@@ -668,18 +673,20 @@ export function createDrone(maxAnisotropy = 1) {
     pbGroup.add(mosfet);
   }
 
-  for (let d = 0; d < 4; d++) {
-    const diode = new THREE.Group();
-    const glass = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 4, 10), mats.amberGlass);
-    glass.rotation.z = Math.PI / 2;
-    diode.add(glass);
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(1.02, 1.02, 0.5, 10), mats.mosfetBody);
-    band.rotation.z = Math.PI / 2;
-    band.position.x = 1.3;
-    diode.add(band);
-    diode.position.set(-9 + d * 6, 1.5, 2);
-    pbGroup.add(diode);
-  }
+  // Glass-bodied, with the die and internal leads visible inside — see
+  // src/diode.js. Cathode bands all face the same way because they mark
+  // polarity; only the roll about the axis varies.
+  const diodeSet = buildDiodes(
+    [
+      { x: -9, z: 1.5 },
+      { x: -3, z: 1.5 },
+      { x: 3, z: 1.5 },
+      { x: 9, z: 1.5 },
+    ],
+    { baseY: 1.5, boardT: 1.5, transmissive: DIODE_TRANSMISSION }
+  );
+  diodeTriangles = diodeSet.triangles;
+  pbGroup.add(diodeSet.group);
 
   // Two values, because the bands encode the value and five identical parts
   // would read as wrong to anyone who can decode them. See src/resistor.js.
@@ -809,7 +816,7 @@ export function createDrone(maxAnisotropy = 1) {
     });
   });
 
-  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7, espTriangles, motorTriangles, jumperTriangles, veroTriangles, veroBoardTriangles, veroHoles, resistorTriangles, motorFinish, motorAssets, FINISHES };
+  return { group, parts, dynamicWires, textures: allTextures, stageCount: 7, espTriangles, motorTriangles, jumperTriangles, veroTriangles, veroBoardTriangles, veroHoles, resistorTriangles, diodeTriangles, motorFinish, motorAssets, FINISHES };
 }
 
 export function updateDynamicWires(dynamicWires) {
